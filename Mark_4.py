@@ -321,8 +321,9 @@ def Speak(GPT_response):
   # elevenlabs.play(audio)
   
   #####-CODE FOR MICROSOFT PYTTSX3-######
+  speech = GPT_response.split("#")[0]
   engine = pyttsx3.init()
-  engine.say(GPT_response)
+  engine.say(speech)
   engine.runAndWait()
 
 def stasis_protocol(pause = False):
@@ -740,8 +741,8 @@ def main():
       Speak("Understood, give me a few seconds to process.")
     jarvis_response = send_to_llama(result)
     print(f"\nJ.A.R.V.I.S: {jarvis_response}")
-    speech = jarvis_response.split("#")[0]
-    Speak(speech)
+    #speech = jarvis_response.split("#")[0]
+    Speak(jarvis_response)
     
     if len(jarvis_response.split('#')) > 1:
       command = jarvis_response.split('#')[1]
