@@ -1,0 +1,14 @@
+
+2. ********* Figure out a way to get pdf's into the file analyzer
+- Convert them into pictures and then run through image processor?
+- Find a different API that reads files?
+
+3. Get the spotify player working(individual songs, artists, playlists)
+
+
+5. ********* make an eye tracker for my mouse/ work on scrolling with hand motions
+-where eyes go is where mouse goes
+-blink means left click, double blink means right click
+
+
+fix the pause button bug, have a save file function that allows jarvis to save these functions into a save file, and have him ask before googling things.
