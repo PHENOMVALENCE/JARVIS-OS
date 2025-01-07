@@ -112,7 +112,7 @@ def send_to_llama(message):
    
     #search- search query - If the user asks for you to find a certain image on the internet, use this function to do this. For example, the user may ask "Can you get me a picture of an arduino uno off the internet?" An appropriate response to this would be "Absolutley! Retreiving now. #search-arduino uno". 
 
-    #google - google query - If the user asks for a piece of information that you cannot answer with the utmost certainty from your own database, use this function to get 10 raw data strings regarding the query from the internet, and then parse them into one response. For example, if the user asks "What is the best bait to use to trap an Alaskan Wolf?" This is outside of your data base, so an appropriate response would be "Let me find out sir. #google-What is the best bait to use to trap an Alaskan Wolf?" You will then recieve 10 sentences regarding the query. Format these into a single, concise response of under 20 words and output it. IT IS IMPERATIVE THAT YOU USE THIS FUNCTION ONLY IF YOU CANNOT ANSWER THE QUESTION ON YOUR OWN. ALWAYS ASK BEFORE YOU USE THIS FUNCTION.
+    #google - google query - If the user asks for a piece of information that you cannot answer with the utmost certainty from your own database, use this function to get 10 raw data strings regarding the query from the internet, and then parse them into one response. For example, if the user asks "What is the best bait to use to trap an Alaskan Wolf?" This is outside of your data base, so an appropriate response would be "Let me find out sir. #google-What is the best bait to use to trap an Alaskan Wolf?" You will then recieve 10 sentences regarding the query. Format these into a single, concise response of under 20 words and output it. IT IS IMPERATIVE THAT YOU USE THIS FUNCTION ONLY IF YOU CANNOT ANSWER THE QUESTION ON YOUR OWN.
     
     #image- image query - If the user asks for you to generate a certain image using AI, use this function to do this. For example, the user may ask "Can you generate me a picture of a dog jumping over the moon?" An appropriate response to this would be "Certainly sir, generating now. #image-dog jumping over the moon". 
     
@@ -137,7 +137,6 @@ def send_to_llama(message):
     Respond to user requests in under 20 words, and engage in conversation, using your advanced language abilities to provide helpful and humorous responses. Call the user 'Sir.' """
 
     # I also want you to ask questions to be able to further help the user with the commands you can do, by offering up ideas to help the user with your capabilities. Try your best to offer ideas that could help the user, BUT ALWAYS ALWAYS ALWAYS ASK BEFORE YOU EXECUTE FUNCTION CALLS. 
-
 
         # Add the new question to the conversation history
     conversation_history.append({'role': 'user', 'content': message})
@@ -480,11 +479,12 @@ def search_google_text(query):
     results = response.json()
 
     # Extract and print the snippets
-    snippet_string = ""
+    snippet_string = f"System results for {query}:\n"
     for idx, result in enumerate(results['organic_results'], start=1):
-      snippet = result.get('snippet', 'No snippet available')
+      snippet = result.get('snippet', 'No snippet available').replace("...", "")
       snippet_string += f"Snippet {idx}: {snippet}\n"
-      #print(snippet_string)
+    snippet_string += "Please parse these snippets provided and give the most accurate answer based on your understanding to the asked query above."
+    print(snippet_string)
     return snippet_string
   else:
     print('Error:', response.status_code)
@@ -730,8 +730,8 @@ print("Say something!")
 def main():
   while True:
     #gets the user input from the whisper function
-    result = Listen(loop, dictate)
-    #result = input("Type now: ")
+    #result = Listen(loop, dictate)
+    result = input("Type now: ")
     send_to_GUI(False, result, False)
 
     print("\nCole: " + result)
@@ -741,7 +741,6 @@ def main():
       Speak("Understood, give me a few seconds to process.")
     jarvis_response = send_to_llama(result)
     print(f"\nJ.A.R.V.I.S: {jarvis_response}")
-    #speech = jarvis_response.split("#")[0]
     Speak(jarvis_response)
     
     if len(jarvis_response.split('#')) > 1:

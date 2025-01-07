@@ -1,24 +1,29 @@
-from openai import OpenAI
-client = OpenAI(api_key= 'REDACTED_OPENAI_API_KEY')
+import requests
 
-response = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": "What's in this image?"},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-                        "detail": "high",
-                    },
-                },
-            ],
-        }
-    ],
-    max_tokens=300,
-)
 
-print(response.choices[0].message.content)
+# Replace with your actual API key
+api_key = '4e26f961f6a48965866c3845c22854152866c99e35b85046ddc7bc1bfd1483a0'
+
+# Set up the parameters
+params = {
+'q': "What is the best bait to use to trap an Alaskan Wolf?",
+'api_key': api_key
+}
+
+# Make the request to SerpApi
+response = requests.get('https://serpapi.com/search.json', params=params)
+
+# Check if the request was successful
+if response.status_code == 200:
+    # Parse the JSON response
+    results = response.json()
+
+    # Extract and print the snippets
+    snippet_string = f"System results:\n"
+    for idx, result in enumerate(results['organic_results'], start=1):
+        snippet = result.get('snippet', 'No snippet available').replace("...", "")
+        snippet_string += f"Snippet {idx}: {snippet}\n"
+    print(snippet_string)
+    
+else:
+    print('Error:', response.status_code)
