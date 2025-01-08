@@ -6,9 +6,12 @@
 3. Get the spotify player working(individual songs, artists, playlists)
 
 
-5. ********* make an eye tracker for my mouse/ work on scrolling with hand motions
--where eyes go is where mouse goes
--blink means left click, double blink means right click
+- gmail api -
+
+1. Have a switching method function that can switch between the speaking mode and the texting mode. Whenever Jarvis recieves a text that says only "Switch" regardless of the mode he switches, or the speaking mode can have a switch function that switches him to texting, and the texting mode switches him back to speaking. But I think the texting method is better.
+
+2. During the texting mode Have a search every 2 seconds for a text message from the email api that is as recent as 2 seconds.
+
+3. If that is seen, grab the text file, interpret it, and send it to the model. Once the model outputs, package that back up and send it to the phone.
 
 
-fix the pause button bug, have a save file function that allows jarvis to save these functions into a save file, and have him ask before googling things.

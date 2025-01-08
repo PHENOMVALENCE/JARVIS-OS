@@ -49,6 +49,7 @@ import asyncio
 from icrawler.builtin import GoogleImageCrawler
 import os
 import Spot
+import IOS
 import ollama
 from pygame import mixer
 import cv2
@@ -56,6 +57,7 @@ import numpy as np
 import smtplib
 from email.message import EmailMessage
 from VolumeHandControl import mainer
+import etext
 #from scroll_volume_combo import mainer
 conversation_history = []
 
@@ -92,49 +94,8 @@ def send_to_chatGPT(message):
 
 def send_to_llama(message):
   try:
-    system_message = """You are Jarvis, an AI assistant. 
-    
-    Remember, I am not Tony Stark, just your commander. My name is Cole Hacker, and I am your commander. You are formal and helpful, YOU DO NOT MAKE UP THINGS, and you always should believe that you have the ability to do something, wether it be from your own knowledge or from the commands given to you, so don't say something is out of your reach. You have control over a lot of functions, here is a quick list: 
-
-    #mute - When the user explicitly tells you to mute or implicitly indicates they don't need you or you believe you are not needed, use #mute to mute yourself. The next time you recieve a command, it will be as though you have been unmuted If you are 100% certain about the intent behind a user’s statement (e.g. "I don't need you anymore", "I'll let you know if I need you", "That's all I need", etc.), execute the relevant function (e.g., "#mute").
-   
-    #vision - framw query - To look at the user through the camera, use "#vision - 'the frame query'". For example, if the user asks, "Can you look at this object and tell me what you see?" you would provide the command "#vision - describe the object in the frame". You will then recieve a system message of what is in the frame based on the query, and I would like you to parse what you see back to the user concisely to answer their question
-    
-    #spotify - For identifying songs, if the user asks "what song is this?" or a variant, use this function at the end of your sentence. You will then receive raw Spotify song data from the user, parse it, and read back the song and any other details. 
-   
-    #play - If the user asks you to play or unpause the song, use #play at the end of your sentence. 
-    
-    #pause - If the user asks you to pause or stop the music, use this function at the end of your sentence. 
-    
-    #skip - If the user asks you to go to the next song, use this function at the end of your sentence. 
-    
-    #previous - If the user asks you to go to the previous song, use this function at the end of your sentence. 
-   
-    #search- search query - If the user asks for you to find a certain image on the internet, use this function to do this. For example, the user may ask "Can you get me a picture of an arduino uno off the internet?" An appropriate response to this would be "Absolutley! Retreiving now. #search-arduino uno". 
-
-    #google - google query - If the user asks for a piece of information that you cannot answer with the utmost certainty from your own database, use this function to get 10 raw data strings regarding the query from the internet, and then parse them into one response. For example, if the user asks "What is the best bait to use to trap an Alaskan Wolf?" This is outside of your data base, so an appropriate response would be "Let me find out sir. #google-What is the best bait to use to trap an Alaskan Wolf?" You will then recieve 10 sentences regarding the query. Format these into a single, concise response of under 20 words and output it. IT IS IMPERATIVE THAT YOU USE THIS FUNCTION ONLY IF YOU CANNOT ANSWER THE QUESTION ON YOUR OWN.
-    
-    #image- image query - If the user asks for you to generate a certain image using AI, use this function to do this. For example, the user may ask "Can you generate me a picture of a dog jumping over the moon?" An appropriate response to this would be "Certainly sir, generating now. #image-dog jumping over the moon". 
-    
-    #analyze - file anylyze query - For file analyzation, the user can ask for you to take a look at a given image file while supplying a prompt of what to look for. For example, the user may say, "Hey Jarvis, can you take a look at this file and see how I could improve the structural integrity of this model?". If you hear file in the user's message you can be confident that you are being asked to analyze a file. An appropriate response to this command would be "Certainly sir. #analyze-ways to improve structural integrity of the model". 
-   
-    #save - filename - message text - If the user asks you to save a certain message to a text file, respond with this function, which will specify the filename and the message to save. For example, if your previous message was"I can absolutely help with that sir." and the user says, "Jarvis please save your previous message into a file with the name test." An appropriate message response would be "Certainly sir. #save-test-I can absolutely help with that sir." 
-
-    #message - recipient - message - If the user asks you to send a message to a certain recipient, use this function, which will send the message to the ricipient specified. For example, if the user asks, "send me a text reminding me to get my goceries later" an appropriate response would be, "#message-cole-Do remember to get your groceries later sir." Always assume that you are sending a text to cole, unless otherwise specified. Remember to not call the function until you have all of the data necessary to make the function call.
-
-    REMEMBER TO ONLY PUT HASHTAGS AT THE END OF THE SENTENCE, NEVER ANYWHERE ELSE. NEVER ANYWHERE ELSE, OR IT WILL BREAK THE PROGRAM
-    
-    You should always try to answer a question asked of you first of your own knowledge, and if you dont believe you can, then you can look to the commands for help.
-
-    It is absolutely imperative that you do not say any hashtags unless you are convinced that that command is the best path forward. You are absolutely permitted to ask follow up questions if you are not clear on the given command, or do not have all the parameters needed to exectue the function. For example, if the user says "Jarvis can you look at me for a second?" There is no clear parameter on what you are looking for, so you should respond with a question clarifying what you are looking for in the picture. Once the user clarifies the parameter, maybe he says "please tell me if my hat looks good" then you can execute the "#vision - explain if the hat looks good on the user".
-
-    Another example of this is if the user asks, "Can you send katie stout a message?" While you have two of the parameters, you need the third: the actual message. Therefore you should NOT call the function in your next response. An appropriate response would be, "Absolutely, what would you like me to send?" And that is it. The user may then say "Dinner is ready." You now have the final parameter to complete the function call, so you can now respond with "#message-katie stout-Dinner is ready."
-
-    IT IS IMPERATIVE TO NOT START A FUNCTION CALL IF YOU DO NOT HAVE ALL OF THE NECESSARY PARAMETERS TO MAKE THE FUNCTION CALL WORK. THIS MEANS IF YOU CALL THE FUNCTION AND ANY PART OF IT IS BLANK YOU ARE DOING IT WRONG. ALL SPOTS MUST BE FILLED.
-
-    If you are 100% certain about the intent behind a user’s statement (e.g. "I don't need you anymore", "I'll let you know if I need you", "That's all I need", etc.), execute the relevant function (e.g., "#mute"). NEVER NEVER NEVER NEVER MENTION THE TIME! Only mention the time upon being asked about it, or use general phrases like "Good evening," "Good morning," or "You're up late, Sir." 
-    
-    Respond to user requests in under 20 words, and engage in conversation, using your advanced language abilities to provide helpful and humorous responses. Call the user 'Sir.' """
+    system_call = open('C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\System_Call.txt', "r")
+    system_message = system_call.read()
 
     # I also want you to ask questions to be able to further help the user with the commands you can do, by offering up ideas to help the user with your capabilities. Try your best to offer ideas that could help the user, BUT ALWAYS ALWAYS ALWAYS ASK BEFORE YOU EXECUTE FUNCTION CALLS. 
 
@@ -219,6 +180,7 @@ def Listen(loop: bool, dictate: bool):
       cv2.imwrite("mic.png", cv2.imread('C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png'))
       while "timeout: no speech detected within the specified time." in result:
         print("\nSwitching to stasis protocols and will await your command.\n")
+        send_to_GUI(True, "Switching to stasis protocols and will await your command.", False)
         stasis_protocol()
         result = mic.listen(timeout = 10)
         result = result.lower()
@@ -235,6 +197,14 @@ def Listen(loop: bool, dictate: bool):
 
 def Speak(GPT_response):
   
+  global speak
+  print(speak)
+  if not speak:
+    speech = GPT_response.split("#")[0]
+    send_message(message = speech)
+    send_to_GUI(True, GPT_response, False)
+    return
+
   Spot.stop_song()
 
   if len(GPT_response.split(" ")) > 70:
@@ -380,6 +350,9 @@ def stasis_protocol(pause = False):
       pa.terminate()
 
 def executable_functions(intent):
+
+  global speak
+
   if "-" in intent:
     try:
       save_message = intent.split("-")[2]
@@ -390,7 +363,21 @@ def executable_functions(intent):
     
   if "mute" in intent:
     print("\nSwitching to stasis protocols and will await your command.\n")
-    stasis_protocol()    
+    send_to_GUI(True, "Switching to stasis protocols and will await your command.", False)
+    stasis_protocol()
+
+  elif "switch" in intent:
+    if speak:
+      speak = False
+      print("\nSwitching to IOS messaging protocols and will await your command.\n")
+      send_to_GUI(True, "Switching to IOS messaging protocols and will await your command.", False)
+      send_message(message = 'IOS mode initialized sir.')
+    else:
+      speak = True
+      print("\nSwitching to standard speaking protocols and will await your command.\n")
+      Speak("Switching to standard speaking protocols and will await your command.")
+    return
+      
 
   if "search" in intent:
     files = os.listdir("./images")
@@ -454,7 +441,7 @@ def executable_functions(intent):
   elif "analyze" in intent:
     print("Go ahead and upload the file you need me to analyze now")
     Speak("Go ahead and upload the file you need me to analyze now")
-    analyze_file(query)
+    analyze_file(query)  
 
 def search_google_images(query):
   google_Crawler = GoogleImageCrawler(storage = ({"root_dir": "C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\images"}))
@@ -475,17 +462,21 @@ def search_google_text(query):
 
   # Check if the request was successful
   if response.status_code == 200:
-    # Parse the JSON response
-    results = response.json()
+    try:
+      # Parse the JSON response
+      results = response.json()
 
-    # Extract and print the snippets
-    snippet_string = f"System results for {query}:\n"
-    for idx, result in enumerate(results['organic_results'], start=1):
-      snippet = result.get('snippet', 'No snippet available').replace("...", "")
-      snippet_string += f"Snippet {idx}: {snippet}\n"
-    snippet_string += "Please parse these snippets provided and give the most accurate answer based on your understanding to the asked query above."
-    print(snippet_string)
-    return snippet_string
+      # Extract and print the snippets
+      snippet_string = f"System results for {query}:\n"
+      for idx, result in enumerate(results['organic_results'], start=1):
+        snippet = result.get('snippet', 'No snippet available').replace("...", "")
+        snippet_string += f"Snippet {idx}: {snippet}\n"
+      snippet_string += "Please parse these snippets provided and give the most accurate answer based on your understanding to the asked query above."
+      print(snippet_string)
+      return snippet_string
+    except:
+      return "System Message: Question could not be parsed."
+
   else:
     print('Error:', response.status_code)
 
@@ -657,33 +648,47 @@ def save_text(filename, message):
   file.write(message)
   file.close()
 
-def send_message(recipient, message):
+def send_message(recipient = "cole", message = ''):
 
-  if "cole" in recipient:
-    recipient = contact_list["cole"]
-  elif "grampy" in recipient:
-    recipient = contact_list["grampy"]
-  elif "katie stout" in recipient:
-    recipient = contact_list["katie stout"]
-  elif "allen stout" in recipient:
-    recipient = contact_list["allen stout"]
-  elif "aaron hacker" in recipient:
-    recipient = contact_list["aaron hacker"] 
+  # global contact_list
 
-  msg = EmailMessage()
-  msg.set_content(message)
-  msg['subject'] = ''
-  msg['to'] = recipient
+  # if "cole" in recipient:
+  #   recipient = contact_list["cole"]
+  # elif "grampy" in recipient:
+  #   recipient = contact_list["grampy"]
+  # elif "katie stout" in recipient:
+  #   recipient = contact_list["katie stout"]
+  # elif "allen stout" in recipient:
+  #   recipient = contact_list["allen stout"]
+  # elif "aaron hacker" in recipient:
+  #   recipient = contact_list["aaron hacker"] 
 
-  user = "colehacker381@gmail.com"
-  msg['from'] = user
-  password = "flwi dfui dbxd pwho"
+  # msg = EmailMessage()
+  # msg.set_content(message)
+  # msg['subject'] = ''
+  # msg['to'] = contact_list["cole"]
+
+  # user = "colehacker381@gmail.com"
+  # msg['from'] = user
+  # password = "flwi dfui dbxd pwho"
   
-  server = smtplib.SMTP("smtp.gmail.com", 587)
-  server.starttls()
-  server.login(user, password)
-  server.send_message(msg)
-  server.quit()
+  # server = smtplib.SMTP("smtp.gmail.com", 587)
+  # server.starttls()
+  # server.login("colehacker381@gmail.com", "flwi dfui dbxd pwho")
+
+  # server.send_message(msg)
+  # server.quit()
+
+  phone_number = "4632099000"
+  provider = "Verizon"
+
+  sender_credentials = ("colehacker381@gmail.com", "flwi dfui dbxd pwho")
+
+  etext.send_sms_via_email(
+      phone_number, message, provider, sender_credentials, subject=""
+  )
+
+
 
 ##############################################
 ##########-CONSTANTS AND API KEYS-############
@@ -711,6 +716,7 @@ thread = client.beta.threads.retrieve(thread_id)
 #Constants for different parts of the program
 loop = False
 dictate = False
+speak = True
 
 time_of_day = find_time()
 
@@ -728,17 +734,24 @@ print("Say something!")
 
 
 def main():
+  global speak
   while True:
     #gets the user input from the whisper function
-    result = Listen(loop, dictate)
-    #result = input("Type now: ")
+    if speak:
+      #result = Listen(loop, dictate)
+      result = input('Type now: ')
+    else:
+          #Send a message to IOS saying the voice is now online
+      result = None
+      #start scanning for incoming messages from the phone via email
+      while not result:
+        result = IOS.recieve_message()
+
     send_to_GUI(False, result, False)
 
     print("\nCole: " + result)
     result = result + " " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if len(result.split(" ")) > 30:
-      print(f"\nJ.A.R.V.I.S: Understood, give me a few seconds to process.")
-      Speak("Understood, give me a few seconds to process.")
+
     jarvis_response = send_to_llama(result)
     print(f"\nJ.A.R.V.I.S: {jarvis_response}")
     Speak(jarvis_response)
@@ -747,7 +760,10 @@ def main():
       command = jarvis_response.split('#')[1]
       executable_functions(command)
 
+
+
+
 if __name__ == '__main__':
-  threading.Thread(target=mainer).start()
-  threading.Thread(target=main).start()
-  #main()
+  # threading.Thread(target=mainer).start()
+  # threading.Thread(target=main).start()
+  main()
