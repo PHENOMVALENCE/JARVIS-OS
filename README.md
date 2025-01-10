@@ -1,5 +1,5 @@
 # J.A.R.V.I.S System Overview
-The full J.A.R.V.I.S. operating system, beta testing Mark 5. The full suystem is designed and tested to be ran on the WINDOWS 11 OS, however
+The full J.A.R.V.I.S. operating system, beta testing Mark 5. The full suystem is designed and tested to be ran on the WINDOWS 11 OS
 
 JARVIS is one of the first fully integrated systems that can be spoken to and run locally or through an API, right before speaking it's response back to you and running the command given to it. Using OpenAI's Whisper model for the speech-to-text, either OpenAI's ChatGPT API or Ollama's Gemma2 model for local running, and either OpenAI's, elevenlabs, or microsoft's text-to-speech, there are many different ways to customize your experience. This os is designed to be fully run on any computer system, regardless of processing power(However more processing power always helps). 
 
@@ -33,7 +33,7 @@ A basic overveiw is also included below:
 
 - DALLE3 generated images - JARVIS can also generate images through OpenAI's DALLE3. Be warned that DALLE3 is not good at text generation.
 
-- analyze image files - JARVIS can take input image files (.png, .jpg, .heic tested and supported) and analyze them based on what the user is looking to analyze. PDF analyzation coming in future installments.
+- analyze image files - JARVIS can take input image files (.png, .jpg tested and supported) and analyze them based on what the user is looking to analyze. PDF analyzation coming in future installments.
 
 - IOS mode - Currently in the beta testing stages, JARVIS can use your phone provider and send free SMS messages through gmail. Any text sent back through IOS is sent to the gmail inbox, which is monitored by JARVIS. Any input from the IOS message will send it through gmail to JARVIS, where he can then parse the text and send it back to the user. THIS IS CURRENTLY IN BETA TESTING, DO NOT EXPECT PERFECT RESULTS. Regardless of testing, the sending of messages through IOS is perfectly encrypted through gmail, so data leaks are not a problem.
 
@@ -116,10 +116,10 @@ Thare are lots of different ways to customize your JARVIS bot, here are a few st
 - Whisper hallucenations -
 - Beta testing of the IOS mode - 
 - Memory does not pass through instances -
-- analyze function can only accept image files - 
+- analyze function can only accept (.png and .jpg) image files- 
 
 # Future installments
-- Analyze function accepts pdf format
+- Analyze function accepts pdf format and .heic files
 - MAC OS accessability
 - IOS mode stability
 - Much more!
@@ -127,10 +127,7 @@ Thare are lots of different ways to customize your JARVIS bot, here are a few st
 # License
 Etext functionalities provided by AlfredoSequeida (c) 2021
 
-With an active Patreon membership, you are granted access to publically deal in the Software, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell items on any platform chosen. The files provided here are not for digital resale. 
-
-Without an active membership, you are restricted from access to the services shown above, and access to these services will expire upon experation of the patreon subscription.
+Distributed under the MIT license, see LICENSE for more information
 
 # Contact
 I am going to try my absolute very best to provide as much help to people as possible, but please understand that I am not always available to do so. There are many different ways to contact me:
