@@ -1,5 +1,5 @@
 # J.A.R.V.I.S System Overview
-The full J.A.R.V.I.S. operating system, beta testing Mark 5. The full suystem is designed and tested to be ran on the WINDOWS 11 OS, however
+The full J.A.R.V.I.S. operating system, beta testing Mark 5. The full suystem is designed and tested to be ran on the WINDOWS 11 OS
 
 JARVIS is one of the first fully integrated systems that can be spoken to and run locally or through an API, right before speaking it's response back to you and running the command given to it. Using OpenAI's Whisper model for the speech-to-text, either OpenAI's ChatGPT API or Ollama's Gemma2 model for local running, and either OpenAI's, elevenlabs, or microsoft's text-to-speech, there are many different ways to customize your experience. This os is designed to be fully run on any computer system, regardless of processing power(However more processing power always helps). 
 
