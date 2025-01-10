@@ -644,7 +644,7 @@ def send_message(message = ''):
   sender_credentials = (constants.sender_email, constants.sender_provider_password)
 
   etext.send_sms_via_email(
-      constants.phone_number, message, constants.phone_provider, sender_credentials, subject=""
+      number=constants.phone_number, message=message, provider=constants.phone_provider, sender_credentials=sender_credentials, subject=""
   )
 
 
@@ -712,6 +712,5 @@ if __name__ == '__main__':
   Speak(f"Good {find_time()} and welcome back sir! How can we get started today?")
   print("\nTurn your microphone on and say something!\n")
   send_to_GUI(False, "Turn your microphone on and say something!", False)
-  # threading.Thread(target=VolumeControlMain).start()
-  # threading.Thread(target=main).start()
-  main()
+  threading.Thread(target=VolumeControlMain).start()
+  threading.Thread(target=main).start()

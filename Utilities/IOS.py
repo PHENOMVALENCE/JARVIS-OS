@@ -9,8 +9,10 @@ from googleapiclient import errors
 from datetime import datetime
 try:
     import constants
+    import providers
 except:
     from . import constants
+    from . import providers
 
 def recieve_message():
 
@@ -38,6 +40,8 @@ def recieve_message():
         service = build('gmail', 'v1', credentials=creds)
         result = service.users().messages().list(userId = 'me').execute()
         messages = result.get('messages')
+        sender = ''
+        data = ''
         for i in messages:
             txt = service.users().messages().get(userId = 'me', id = i['id'], format = 'full').execute()
             payload = txt['payload']
@@ -52,24 +56,22 @@ def recieve_message():
                     email_date = j['value']
 
             #Make sure that the email is from my phone before scanning
-            if sender == '4632099000@vzwpix.com':
-                parts = payload.get('parts')[0]
-                attachment_id = parts['body']['attachmentId']
-                attachment = service.users().messages().attachments().get(userId = 'me', messageId = i['id'], id=attachment_id).execute()
-                data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8')).decode('UTF-8')
+            if providers.PROVIDERS[constants.phone_provider]['mms_support'] == True:
+                if sender == f'{constants.phone_number}@{providers.PROVIDERS[constants.phone_provider]['mms']}':
+                    parts = payload.get('parts')[0]
+                    attachment_id = parts['body']['attachmentId']
+                    attachment = service.users().messages().attachments().get(userId = 'me', messageId = i['id'], id=attachment_id).execute()
+                    data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8')).decode('UTF-8')
 
-            #after getting the email, delete  it immediatly.
-                service.users().messages().modify( userId='me', id=i['id'], body={ 'addLabelIds': ['TRASH'] }).execute()
+                #after getting the email, delete  it immediatly.
+                    service.users().messages().modify( userId='me', id=i['id'], body={ 'addLabelIds': ['TRASH'] }).execute()
+                    
+                    return data
+                return None
+            else:
+                return 'Phone provider does not have Python IOS capabilities. Please reboot the system'
 
 
-    ############## - JARVIS LOGIC ##################
-
-                # print(f"Email date: {date_obj}")
-                # print(f"Email seconds: {date_obj_sec}")
-                print(data)
-                return data
-            #print("ran but unsuccessful")
-            return None
     except HttpError as error:
         print(f"An error has occured: {error}")
 
