@@ -4,22 +4,23 @@ import datetime #Library for getting current date and time
 import sys
 from pygame.locals import QUIT
 import cv2
+from Utilities import constants
 
 ######################################## - GUI -###########################
 #Initialises the display-------------------------------------------------------
 pygame.display.init() # Initiates the display pygame
 screen = pygame.display.set_mode((1200,800), pygame.RESIZABLE) # Sets the size of the display
 
-background = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png")
+background = pygame.image.load(constants.background_png)
 background = pygame.transform.scale(background, (1200, 800))
 background.fill((0, 0, 0))  # Assume the background color is black
 
-hacker = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\Hacker.png")
+hacker = pygame.image.load(constants.hacker_image)
 hacker = pygame.transform.scale(hacker, (600, 400))
 
 pygame.font.init()
-smallfont = pygame.font.Font("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\Squares Bold Free.otf", 15)
-bigfont = pygame.font.Font("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\Squares Bold Free.otf", 22)
+smallfont = pygame.font.Font(constants.font_file, 15)
+bigfont = pygame.font.Font(constants.font_file, 22)
 
 system = bigfont.render("SYSTEM:", True, (255, 255, 255))
 speakers = bigfont.render("SPEAKERS:", True, (255, 255, 255))
@@ -34,15 +35,15 @@ user = bigfont.render("USER:", True, (255, 255, 255))
 pygame.event.set_blocked(pygame.MOUSEBUTTONDOWN)
 pygame.event.set_blocked(pygame.MOUSEBUTTONUP)
 
-initial_vision_img = cv2.imread("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\loading.jpg")
-initial_JARVIS_img = cv2.imread("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png")
-initial_user_img = cv2.imread("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png")
-initial_mic_img = cv2.imread('C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png')
+initial_vision_img = cv2.imread(constants.loading_image)
+initial_JARVIS_img = cv2.imread(constants.background_png)
+initial_user_img = cv2.imread(constants.background_png)
+initial_mic_img = cv2.imread(constants.background_png)
 
-cv2.imwrite("mic.png", initial_mic_img)
-cv2.imwrite("Vision.jpg", initial_vision_img)
-cv2.imwrite("JARVIS_TEXT.png", initial_JARVIS_img)
-cv2.imwrite("USER_TEXT.png", initial_user_img)
+cv2.imwrite(constants.GUI_mic_png, initial_mic_img)
+cv2.imwrite(constants.vision_image, initial_vision_img)
+cv2.imwrite(constants.jarvis_text_image, initial_JARVIS_img)
+cv2.imwrite(constants.user_text_image, initial_user_img)
 
 ###########################################################################
 
@@ -132,12 +133,12 @@ def face():
     for j in range(1, 64):
       screen.blit(background, (0, 0), (0, 0, 1200, 800))
     
-      jarvis_gif = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\" + f"{j}.gif")
+      jarvis_gif = pygame.image.load(constants.GUI_image_dir + f"\\{j}.gif")
       try:
-        vision_image = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\Vision.jpg")
-        user_text = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\USER_TEXT.png")
-        jarvis_text = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\JARVIS_TEXT.png")
-        mic_image = pygame.image.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\mic.png")
+        vision_image = pygame.image.load(constants.vision_image)
+        user_text = pygame.image.load(constants.user_text_image)
+        jarvis_text = pygame.image.load(constants.jarvis_text_image)
+        mic_image = pygame.image.load(constants.GUI_mic_png)
         vision_image = pygame.transform.scale(vision_image, (320, 240))
         mic_image = pygame.transform.scale(mic_image, (66.666, 100))
       except:

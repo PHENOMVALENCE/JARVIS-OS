@@ -4,6 +4,10 @@ import numpy as np
 from cvzone.HandTrackingModule import HandDetector
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+try:
+    import constants
+except:
+    from . import constants
 
 def volume_control(img, hand1, lmlist, volume):
     
@@ -51,7 +55,7 @@ previousTime = 0
 detector = HandDetector(staticMode = False, 
                         maxHands = 2, 
                         modelComplexity= 1, 
-                        detectionCon= 0.7, 
+                        detectionCon= .95, 
                         minTrackCon= 0.6
                         )
 
@@ -101,7 +105,7 @@ def mainer():
         
         
         #cv2.imshow("camera", img)
-        cv2.imwrite("Vision.jpg", img)
+        cv2.imwrite(constants.vision_image, img)
         key = cv2.waitKey(10)                            #Delays program 10 milliseconds for improved efficiency
         if key == 27:                                    #Esc key to exit the camera
             break

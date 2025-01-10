@@ -48,18 +48,19 @@ import base64
 import asyncio
 from icrawler.builtin import GoogleImageCrawler
 import os
-import Spot
-import IOS
+from Utilities import Spot
+from Utilities import IOS
 import ollama
 from pygame import mixer
 import cv2
 import numpy as np
 import smtplib
 from email.message import EmailMessage
-from VolumeHandControl import mainer
+from Utilities.VolumeHandControl import mainer
 import etext
+from Utilities import constants
+
 #from scroll_volume_combo import mainer
-conversation_history = []
 
 
 ##############################################
@@ -94,7 +95,7 @@ def send_to_chatGPT(message):
 
 def send_to_llama(message):
   try:
-    system_call = open('C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\System_Call.txt', "r")
+    system_call = open(constants.system_call_file, "r")
     system_message = system_call.read()
 
     # I also want you to ask questions to be able to further help the user with the commands you can do, by offering up ideas to help the user with your capabilities. Try your best to offer ideas that could help the user, BUT ALWAYS ALWAYS ALWAYS ASK BEFORE YOU EXECUTE FUNCTION CALLS. 
@@ -145,7 +146,7 @@ def send_to_GUI(jarvis_text, text, new_window):
 
   # Save the image
   if jarvis_text:
-      cv2.imwrite("JARVIS_TEXT.png", image)
+      cv2.imwrite(constants.jarvis_text_image, image)
       if new_window:
           while True:
               cv2.imshow("Hit 'esc' to leave image, JARVIS will not continue until then", image)
@@ -154,7 +155,7 @@ def send_to_GUI(jarvis_text, text, new_window):
                   cv2.destroyWindow("Hit 'esc' to leave image, JARVIS will not continue until then")
                   break
   else:
-      cv2.imwrite("USER_TEXT.png", image)
+      cv2.imwrite(constants.user_text_image, image)
       if new_window:
           while True:
               cv2.imshow("Hit 'esc' to leave image, JARVIS will not continue until then", image)
@@ -169,15 +170,15 @@ def Listen(loop: bool, dictate: bool):
   #If there is no speech in the time recognized by the "timeout" variable, the program will
   #shift to the "stasis_protocol" function. If there is text, it is sent back to the main function to be processed
   #the loop setting is set to "False", which is standard
-  mixer.music.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\beep-24.mp3")
+  mixer.music.load(constants.mic_beep)
   mixer.music.play()
-  cv2.imwrite("mic.png", cv2.imread("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\mic.png"))
+  cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.mic_png))
   if not loop:
     try:
       result = mic.listen(timeout = 10)
       result = result.lower()
       mixer.music.play()
-      cv2.imwrite("mic.png", cv2.imread('C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png'))
+      cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.background_png))
       while "timeout: no speech detected within the specified time." in result:
         print("\nSwitching to stasis protocols and will await your command.\n")
         send_to_GUI(True, "Switching to stasis protocols and will await your command.", False)
@@ -198,7 +199,7 @@ def Listen(loop: bool, dictate: bool):
 def Speak(GPT_response):
   
   global speak
-  print(speak)
+
   if not speak:
     speech = GPT_response.split("#")[0]
     send_message(message = speech)
@@ -306,7 +307,7 @@ def stasis_protocol(pause = False):
   pa = None
   audio_stream = None
 
-  mixer.music.load('C:\\Users\\coleh\\OneDrive\\Coding\\Python folder\\J.A.R.V.I.S\\mute.mp3')
+  mixer.music.load(constants.mute_beep)
   mixer.music.play()
   if pause == False:
     Spot.play_song()
@@ -314,7 +315,7 @@ def stasis_protocol(pause = False):
   try:
     
     #Changes the constants into usable executable statements
-    porcupine = pvporcupine.create(keywords = ['jarvis'], sensitivities= [0.5], access_key = "U1wcQNpaj7FKCzXxnA/D/Th1Mn1yKJsF/v0yjr9evel7G0oqi/wx+A==")
+    porcupine = pvporcupine.create(keywords = ['jarvis'], sensitivities= [0.5], access_key = constants.porcupine_API_key)
     pa = pyaudio.PyAudio()
     audio_stream = pa.open(
         rate = porcupine.sample_rate,
@@ -383,6 +384,10 @@ def executable_functions(intent):
     files = os.listdir("./images")
     [os.remove(os.path.join("./images", file)) for file in files]
     search_google_images(query)
+    print("J.A.R.V.I.S: Image aquired, please close the image to continue")
+    Speak("Image aquired, please close the image to continue")
+    send_to_GUI(True, "Image aquired, please close the image to continue.", False)
+    
     try:
       Image.open(f"./images/000001.jpg").show()
     except:
@@ -444,12 +449,12 @@ def executable_functions(intent):
     analyze_file(query)  
 
 def search_google_images(query):
-  google_Crawler = GoogleImageCrawler(storage = ({"root_dir": "C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\images"}))
+  google_Crawler = GoogleImageCrawler(storage = ({"root_dir": constants.image_search_root_dir}))
   google_Crawler.crawl(keyword = query, max_num = 1)
 
 def search_google_text(query):
   # Replace with your actual API key
-  api_key = '4e26f961f6a48965866c3845c22854152866c99e35b85046ddc7bc1bfd1483a0'
+  api_key = constants.google_search_API_key
 
   # Set up the parameters
   params = {
@@ -472,7 +477,7 @@ def search_google_text(query):
         snippet = result.get('snippet', 'No snippet available').replace("...", "")
         snippet_string += f"Snippet {idx}: {snippet}\n"
       snippet_string += "Please parse these snippets provided and give the most accurate answer based on your understanding to the asked query above."
-      print(snippet_string)
+      #print(snippet_string)
       return snippet_string
     except:
       return "System Message: Question could not be parsed."
@@ -482,7 +487,7 @@ def search_google_text(query):
 
 def image_generation(query):
 
-  client = openai.OpenAI(api_key='REDACTED_OPENAI_API_KEY')
+  client = openai.OpenAI(api_key= constants.OpenAI_API_key)
 
   response = client.images.generate(
     model="dall-e-3",
@@ -505,23 +510,20 @@ def image_generation(query):
 
 def vision(result):
 
-  Speak("Scanning in 3 seconds")
-  message = "Scanning in 3..."
-  print(message)
-  sleep(1)
-  message = message.replace("3", "2")
-  print(message)
+  Speak("Scanning in 3...")
+  print("Scanning in 3...")
+  sleep(0.5)
+  print("2")
   Speak("2")
-  sleep(1)
-  message = message.replace("2", "1")
-  print(message)
+  sleep(0.5)
+  print("1")
   Speak("1")
-  sleep(1)
+  sleep(0.5)
   print("Scanning now!!")
   Speak("Scanning now!!")
 
   # OpenAI API Key
-  api_key = "REDACTED_OPENAI_API_KEY"
+  api_key = constants.OpenAI_API_key
 
   # Function to encode the image
   def encode_image(image_path):
@@ -529,7 +531,7 @@ def vision(result):
       return base64.b64encode(image_file.read()).decode('utf-8')
 
   # Path to your image
-  image_path = "C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\Vision.jpg"
+  image_path = constants.vision_image
 
   # Getting the base64 string
   base64_image = encode_image(image_path)
@@ -558,7 +560,7 @@ def vision(result):
         ]
       }
     ],
-    "max_tokens": 150
+    "max_tokens": 200
   }
 
   response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
@@ -593,7 +595,7 @@ def analyze_file(result):
 
       # OpenAI API K
 
-      api_key = "REDACTED_OPENAI_API_KEY"
+      api_key = constants.OpenAI_API_key
 
       # Path to your image
       image_path = file_path
@@ -625,7 +627,7 @@ def analyze_file(result):
               ]
           }
           ],
-          "max_tokens": 150
+          "max_tokens": 200
       }
 
       response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
@@ -644,7 +646,7 @@ def analyze_file(result):
       print("I'm sorry sir, I didn't recieve a file.")
 
 def save_text(filename, message):
-  file = open(f"C:\\Users\\coleh\\OneDrive\\Documents\\Notes\\J.A.R.V.I.S. log files\\{filename}.txt", "w")
+  file = open(f"{constants.log_files_root_dir}\\{filename}.txt", "w")
   file.write(message)
   file.close()
 
@@ -679,15 +681,11 @@ def send_message(recipient = "cole", message = ''):
   # server.send_message(msg)
   # server.quit()
 
-  phone_number = "4632099000"
-  provider = "Verizon"
-
-  sender_credentials = ("colehacker381@gmail.com", "flwi dfui dbxd pwho")
+  sender_credentials = (constants.sender_email, constants.sender_provider_password)
 
   etext.send_sms_via_email(
-      phone_number, message, provider, sender_credentials, subject=""
+      constants.phone_number, message, constants.phone_provider, sender_credentials, subject=""
   )
-
 
 
 ##############################################
@@ -702,16 +700,15 @@ contact_list = {
   "allen stout": "3172131333@vtext.com"
 }
 
-client = openai.OpenAI(api_key="REDACTED_OPENAI_API_KEY")
+conversation_history = []
+client = openai.OpenAI(api_key=constants.OpenAI_API_key)
 mixer.init()
 
-assistant_id = "asst_KkKSIdYGRFTymUd5cMQJ5nt9"
-thread_id = "thread_lwLouuysNzTlCGB80QurqnWG"
 # Retrieve the assistant and thread
-assistant = client.beta.assistants.retrieve(assistant_id)
-thread = client.beta.threads.retrieve(thread_id)
+assistant = client.beta.assistants.retrieve(constants.OpenAI_assistant_ID)
+thread = client.beta.threads.retrieve(constants.OpenAI_thread_ID)
 
-#elevenlabs.set_api_key("c70867fd4ab0c0aef2d52da29aa1137e")
+#elevenlabs.set_api_key(constants.eleven_labs_API_key)
 
 #Constants for different parts of the program
 loop = False
@@ -738,8 +735,8 @@ def main():
   while True:
     #gets the user input from the whisper function
     if speak:
-      #result = Listen(loop, dictate)
-      result = input('Type now: ')
+      result = Listen(loop, dictate)
+      #result = input('Type now: ')
     else:
           #Send a message to IOS saying the voice is now online
       result = None
@@ -761,9 +758,7 @@ def main():
       executable_functions(command)
 
 
-
-
 if __name__ == '__main__':
-  # threading.Thread(target=mainer).start()
-  # threading.Thread(target=main).start()
-  main()
+  threading.Thread(target=mainer).start()
+  threading.Thread(target=main).start()
+  #main()

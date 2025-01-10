@@ -48,14 +48,15 @@ import base64
 import asyncio
 from icrawler.builtin import GoogleImageCrawler
 import os
-import Spot
+from Utilities import Spot
 import ollama
 from pygame import mixer
 import cv2
 import numpy as np
 import smtplib
 from email.message import EmailMessage
-from VolumeHandControl import mainer
+from Utilities import constants
+from Utilities.VolumeHandControl import mainer
 #from scroll_volume_combo import mainer
 conversation_history = []
 
@@ -92,49 +93,8 @@ def send_to_chatGPT(message):
 
 def send_to_llama(message):
   try:
-    system_message = """You are Jarvis, an AI assistant. 
-    
-    Remember, I am not Tony Stark, just your commander. My name is Cole Hacker, and I am your commander. You are formal and helpful, YOU DO NOT MAKE UP THINGS, and you always should believe that you have the ability to do something, wether it be from your own knowledge or from the commands given to you, so don't say something is out of your reach. You have control over a lot of functions, here is a quick list: 
-
-    #mute - When the user explicitly tells you to mute or implicitly indicates they don't need you or you believe you are not needed, use #mute to mute yourself. The next time you recieve a command, it will be as though you have been unmuted If you are 100% certain about the intent behind a user’s statement (e.g. "I don't need you anymore", "I'll let you know if I need you", "That's all I need", etc.), execute the relevant function (e.g., "#mute").
-   
-    #vision - framw query - To look at the user through the camera, use "#vision - 'the frame query'". For example, if the user asks, "Can you look at this object and tell me what you see?" you would provide the command "#vision - describe the object in the frame". You will then recieve a system message of what is in the frame based on the query, and I would like you to parse what you see back to the user concisely to answer their question
-    
-    #spotify - For identifying songs, if the user asks "what song is this?" or a variant, use this function at the end of your sentence. You will then receive raw Spotify song data from the user, parse it, and read back the song and any other details. 
-   
-    #play - If the user asks you to play or unpause the song, use #play at the end of your sentence. 
-    
-    #pause - If the user asks you to pause or stop the music, use this function at the end of your sentence. 
-    
-    #skip - If the user asks you to go to the next song, use this function at the end of your sentence. 
-    
-    #previous - If the user asks you to go to the previous song, use this function at the end of your sentence. 
-   
-    #search- search query - If the user asks for you to find a certain image on the internet, use this function to do this. For example, the user may ask "Can you get me a picture of an arduino uno off the internet?" An appropriate response to this would be "Absolutley! Retreiving now. #search-arduino uno". 
-
-    #google - google query - If the user asks for a piece of information that you cannot answer with the utmost certainty from your own database, use this function to get 10 raw data strings regarding the query from the internet, and then parse them into one response. For example, if the user asks "What is the best bait to use to trap an Alaskan Wolf?" This is outside of your data base, so an appropriate response would be "Let me find out sir. #google-What is the best bait to use to trap an Alaskan Wolf?" You will then recieve 10 sentences regarding the query. Format these into a single, concise response of under 20 words and output it. IT IS IMPERATIVE THAT YOU USE THIS FUNCTION ONLY IF YOU CANNOT ANSWER THE QUESTION ON YOUR OWN.
-    
-    #image- image query - If the user asks for you to generate a certain image using AI, use this function to do this. For example, the user may ask "Can you generate me a picture of a dog jumping over the moon?" An appropriate response to this would be "Certainly sir, generating now. #image-dog jumping over the moon". 
-    
-    #analyze - file anylyze query - For file analyzation, the user can ask for you to take a look at a given image file while supplying a prompt of what to look for. For example, the user may say, "Hey Jarvis, can you take a look at this file and see how I could improve the structural integrity of this model?". If you hear file in the user's message you can be confident that you are being asked to analyze a file. An appropriate response to this command would be "Certainly sir. #analyze-ways to improve structural integrity of the model". 
-   
-    #save - filename - message text - If the user asks you to save a certain message to a text file, respond with this function, which will specify the filename and the message to save. For example, if your previous message was"I can absolutely help with that sir." and the user says, "Jarvis please save your previous message into a file with the name test." An appropriate message response would be "Certainly sir. #save-test-I can absolutely help with that sir." 
-
-    #message - recipient - message - If the user asks you to send a message to a certain recipient, use this function, which will send the message to the ricipient specified. For example, if the user asks, "send me a text reminding me to get my goceries later" an appropriate response would be, "#message-cole-Do remember to get your groceries later sir." Always assume that you are sending a text to cole, unless otherwise specified. Remember to not call the function until you have all of the data necessary to make the function call.
-
-    REMEMBER TO ONLY PUT HASHTAGS AT THE END OF THE SENTENCE, NEVER ANYWHERE ELSE. NEVER ANYWHERE ELSE, OR IT WILL BREAK THE PROGRAM
-    
-    You should always try to answer a question asked of you first of your own knowledge, and if you dont believe you can, then you can look to the commands for help.
-
-    It is absolutely imperative that you do not say any hashtags unless you are convinced that that command is the best path forward. You are absolutely permitted to ask follow up questions if you are not clear on the given command, or do not have all the parameters needed to exectue the function. For example, if the user says "Jarvis can you look at me for a second?" There is no clear parameter on what you are looking for, so you should respond with a question clarifying what you are looking for in the picture. Once the user clarifies the parameter, maybe he says "please tell me if my hat looks good" then you can execute the "#vision - explain if the hat looks good on the user".
-
-    Another example of this is if the user asks, "Can you send katie stout a message?" While you have two of the parameters, you need the third: the actual message. Therefore you should NOT call the function in your next response. An appropriate response would be, "Absolutely, what would you like me to send?" And that is it. The user may then say "Dinner is ready." You now have the final parameter to complete the function call, so you can now respond with "#message-katie stout-Dinner is ready."
-
-    IT IS IMPERATIVE TO NOT START A FUNCTION CALL IF YOU DO NOT HAVE ALL OF THE NECESSARY PARAMETERS TO MAKE THE FUNCTION CALL WORK. THIS MEANS IF YOU CALL THE FUNCTION AND ANY PART OF IT IS BLANK YOU ARE DOING IT WRONG. ALL SPOTS MUST BE FILLED.
-
-    If you are 100% certain about the intent behind a user’s statement (e.g. "I don't need you anymore", "I'll let you know if I need you", "That's all I need", etc.), execute the relevant function (e.g., "#mute"). NEVER NEVER NEVER NEVER MENTION THE TIME! Only mention the time upon being asked about it, or use general phrases like "Good evening," "Good morning," or "You're up late, Sir." 
-    
-    Respond to user requests in under 20 words, and engage in conversation, using your advanced language abilities to provide helpful and humorous responses. Call the user 'Sir.' """
+    system_call = open(constants.system_call_file, "r")
+    system_message = system_call.read()
 
     # I also want you to ask questions to be able to further help the user with the commands you can do, by offering up ideas to help the user with your capabilities. Try your best to offer ideas that could help the user, BUT ALWAYS ALWAYS ALWAYS ASK BEFORE YOU EXECUTE FUNCTION CALLS. 
 
@@ -184,7 +144,7 @@ def send_to_GUI(jarvis_text, text, new_window):
 
   # Save the image
   if jarvis_text:
-      cv2.imwrite("JARVIS_TEXT.png", image)
+      cv2.imwrite(constants.jarvis_text_image, image)
       if new_window:
           while True:
               cv2.imshow("Hit 'esc' to leave image, JARVIS will not continue until then", image)
@@ -193,7 +153,7 @@ def send_to_GUI(jarvis_text, text, new_window):
                   cv2.destroyWindow("Hit 'esc' to leave image, JARVIS will not continue until then")
                   break
   else:
-      cv2.imwrite("USER_TEXT.png", image)
+      cv2.imwrite(constants.user_text_image, image)
       if new_window:
           while True:
               cv2.imshow("Hit 'esc' to leave image, JARVIS will not continue until then", image)
@@ -208,15 +168,15 @@ def Listen(loop: bool, dictate: bool):
   #If there is no speech in the time recognized by the "timeout" variable, the program will
   #shift to the "stasis_protocol" function. If there is text, it is sent back to the main function to be processed
   #the loop setting is set to "False", which is standard
-  mixer.music.load("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\beep-24.mp3")
+  mixer.music.load(constants.mic_beep)
   mixer.music.play()
-  cv2.imwrite("mic.png", cv2.imread("C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\mic.png"))
+  cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.mic_png))
   if not loop:
     try:
       result = mic.listen(timeout = 10)
       result = result.lower()
       mixer.music.play()
-      cv2.imwrite("mic.png", cv2.imread('C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\GUI_images\\background.png'))
+      cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.background_png))
       while "timeout: no speech detected within the specified time." in result:
         print("\nSwitching to stasis protocols and will await your command.\n")
         stasis_protocol()
@@ -336,7 +296,7 @@ def stasis_protocol(pause = False):
   pa = None
   audio_stream = None
 
-  mixer.music.load('C:\\Users\\coleh\\OneDrive\\Coding\\Python folder\\J.A.R.V.I.S\\mute.mp3')
+  mixer.music.load(constants.mute_beep)
   mixer.music.play()
   if pause == False:
     Spot.play_song()
@@ -344,7 +304,7 @@ def stasis_protocol(pause = False):
   try:
     
     #Changes the constants into usable executable statements
-    porcupine = pvporcupine.create(keywords = ['jarvis'], sensitivities= [0.5], access_key = "U1wcQNpaj7FKCzXxnA/D/Th1Mn1yKJsF/v0yjr9evel7G0oqi/wx+A==")
+    porcupine = pvporcupine.create(keywords = ['jarvis'], sensitivities= [0.5], access_key = constants.porcupine_API_key)
     pa = pyaudio.PyAudio()
     audio_stream = pa.open(
         rate = porcupine.sample_rate,
@@ -457,12 +417,12 @@ def executable_functions(intent):
     analyze_file(query)
 
 def search_google_images(query):
-  google_Crawler = GoogleImageCrawler(storage = ({"root_dir": "C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\images"}))
+  google_Crawler = GoogleImageCrawler(storage = ({"root_dir": constants.image_search_root_dir}))
   google_Crawler.crawl(keyword = query, max_num = 1)
 
 def search_google_text(query):
   # Replace with your actual API key
-  api_key = '4e26f961f6a48965866c3845c22854152866c99e35b85046ddc7bc1bfd1483a0'
+  api_key = constants.google_search_API_key
 
   # Set up the parameters
   params = {
@@ -491,7 +451,7 @@ def search_google_text(query):
 
 def image_generation(query):
 
-  client = openai.OpenAI(api_key='REDACTED_OPENAI_API_KEY')
+  client = openai.OpenAI(api_key= constants.OpenAI_API_key)
 
   response = client.images.generate(
     model="dall-e-3",
@@ -530,7 +490,7 @@ def vision(result):
   Speak("Scanning now!!")
 
   # OpenAI API Key
-  api_key = "REDACTED_OPENAI_API_KEY"
+  api_key = constants.OpenAI_API_key
 
   # Function to encode the image
   def encode_image(image_path):
@@ -538,7 +498,7 @@ def vision(result):
       return base64.b64encode(image_file.read()).decode('utf-8')
 
   # Path to your image
-  image_path = "C:\\Users\\coleh\\OneDrive\\Documents\\GitHub\\J.A.R.V.I.S\\Vision.jpg"
+  image_path = constants.vision_image
 
   # Getting the base64 string
   base64_image = encode_image(image_path)
@@ -567,7 +527,7 @@ def vision(result):
         ]
       }
     ],
-    "max_tokens": 150
+    "max_tokens": 200
   }
 
   response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
@@ -602,7 +562,7 @@ def analyze_file(result):
 
       # OpenAI API K
 
-      api_key = "REDACTED_OPENAI_API_KEY"
+      api_key = constants.OpenAI_API_key
 
       # Path to your image
       image_path = file_path
@@ -634,7 +594,7 @@ def analyze_file(result):
               ]
           }
           ],
-          "max_tokens": 150
+          "max_tokens": 200
       }
 
       response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
@@ -653,7 +613,7 @@ def analyze_file(result):
       print("I'm sorry sir, I didn't recieve a file.")
 
 def save_text(filename, message):
-  file = open(f"C:\\Users\\coleh\\OneDrive\\Documents\\Notes\\J.A.R.V.I.S. log files\\{filename}.txt", "w")
+  file = open(f"{constants.log_files_root_dir}\\{filename}.txt", "w")
   file.write(message)
   file.close()
 
@@ -697,16 +657,14 @@ contact_list = {
   "allen stout": "3172131333@vtext.com"
 }
 
-client = openai.OpenAI(api_key="REDACTED_OPENAI_API_KEY")
+client = openai.OpenAI(api_key= constants.OpenAI_API_key)
 mixer.init()
 
-assistant_id = "asst_KkKSIdYGRFTymUd5cMQJ5nt9"
-thread_id = "thread_lwLouuysNzTlCGB80QurqnWG"
 # Retrieve the assistant and thread
-assistant = client.beta.assistants.retrieve(assistant_id)
-thread = client.beta.threads.retrieve(thread_id)
+assistant = client.beta.assistants.retrieve(constants.OpenAI_assistant_ID)
+thread = client.beta.threads.retrieve(constants.OpenAI_thread_ID)
 
-#elevenlabs.set_api_key("c70867fd4ab0c0aef2d52da29aa1137e")
+#elevenlabs.set_api_key(constants.eleven_labs_API_key)
 
 #Constants for different parts of the program
 loop = False

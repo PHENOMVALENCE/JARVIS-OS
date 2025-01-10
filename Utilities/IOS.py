@@ -7,6 +7,10 @@ import base64
 import os 
 from googleapiclient import errors
 from datetime import datetime
+try:
+    import constants
+except:
+    from . import constants
 
 def recieve_message():
 
@@ -16,16 +20,16 @@ def recieve_message():
     SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
     creds = None
-    if os.path.exists('token.json'):
+    if os.path.exists(constants.token):
         creds = Credentials.from_authorized_user_file(
-        'token.json', scopes=SCOPES)
+        constants.token, scopes=SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("client.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(constants.client, SCOPES)
             creds = flow.run_local_server(port = 0)
-        with open("token.json", "w") as token:
+        with open(constants.token, "w") as token:
             token.write(creds.to_json())
 
     ############# - API CALL - ###################
