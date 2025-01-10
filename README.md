@@ -127,10 +127,7 @@ Thare are lots of different ways to customize your JARVIS bot, here are a few st
 # License
 Etext functionalities provided by AlfredoSequeida (c) 2021
 
-With an active Patreon membership, you are granted access to publically deal in the Software, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell items on any platform chosen. The files provided here are not for digital resale. 
-
-Without an active membership, you are restricted from access to the services shown above, and access to these services will expire upon experation of the patreon subscription.
+Distributed under the MIT license, see LICENSE for more information
 
 # Contact
 I am going to try my absolute very best to provide as much help to people as possible, but please understand that I am not always available to do so. There are many different ways to contact me:
