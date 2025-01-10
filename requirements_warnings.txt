@@ -1,0 +1,22 @@
+These are pipreqs warnings to ensure that we have the correct dependency for later on, verify this before sending out
+
+WARNING: Import named "Combo_copy" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Package "Combo_copy" does not exist or network problems
+WARNING: Import named "elevenlabs" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Import named "elevenlabs" was resolved to "elevenlabs:1.50.3" package (https://pypi.org/project/elevenlabs/).        
+Please, verify manually the final list of requirements.txt to avoid possible dependency confusions.
+WARNING: Import named "numpy" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Import named "numpy" was resolved to "numpy:2.2.1" package (https://pypi.org/project/numpy/).
+Please, verify manually the final list of requirements.txt to avoid possible dependency confusions.
+WARNING: Import named "ollama" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Import named "ollama" was resolved to "ollama:0.4.5" package (https://pypi.org/project/ollama/).
+Please, verify manually the final list of requirements.txt to avoid possible dependency confusions.
+WARNING: Import named "openai" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Import named "openai" was resolved to "openai:1.59.6" package (https://pypi.org/project/openai/).
+Please, verify manually the final list of requirements.txt to avoid possible dependency confusions.
+WARNING: Import named "Pillow" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Import named "Requests" was resolved to "requests:2.32.3" package (https://pypi.org/project/requests/).
+Please, verify manually the final list of requirements.txt to avoid possible dependency confusions.
+WARNING: Import named "selenium" not found locally. Trying to resolve it at the PyPI server.
+WARNING: Import named "selenium" was resolved to "selenium:4.27.1" package (https://pypi.org/project/selenium/).
+Please, verify manually the final list of requirements.txt to avoid possible dependency confusions.

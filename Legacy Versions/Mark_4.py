@@ -48,7 +48,7 @@ import base64
 import asyncio
 from icrawler.builtin import GoogleImageCrawler
 import os
-from Utilities import Spot
+from Utilities import Spotify
 import ollama
 from pygame import mixer
 import cv2
@@ -195,7 +195,7 @@ def Listen(loop: bool, dictate: bool):
 
 def Speak(GPT_response):
   
-  Spot.stop_song()
+  Spotify.stop_song()
 
   if len(GPT_response.split(" ")) > 70:
     new_GPT_response = "I have compiled a catalog of information regarding your request. Hit 'escape' when you want to continue"
@@ -299,7 +299,7 @@ def stasis_protocol(pause = False):
   mixer.music.load(constants.mute_beep)
   mixer.music.play()
   if pause == False:
-    Spot.play_song()
+    Spotify.play_song()
 
   try:
     
@@ -377,7 +377,7 @@ def executable_functions(intent):
     return
 
   elif "spotify" in intent:
-    spotify_info = Spot.get_current_song()
+    spotify_info = Spotify.get_current_song()
     query = "System Info: " + str(spotify_info)
     print(query)
     jarvis_response = send_to_llama(query)
@@ -396,19 +396,19 @@ def executable_functions(intent):
     Speak("Message successfully sent sir.")
 
   elif "play" in intent:
-    Spot.play_song()
+    Spotify.play_song()
     stasis_protocol()
     
   elif "pause" in intent:
-    Spot.stop_song()
+    Spotify.stop_song()
     stasis_protocol(pause = True)
     
   elif "skip" in intent:
-    Spot.next_song()
+    Spotify.next_song()
     stasis_protocol()
 
   elif "previous" in intent:
-    Spot.previous_song()
+    Spotify.previous_song()
     stasis_protocol()
 
   elif "analyze" in intent:

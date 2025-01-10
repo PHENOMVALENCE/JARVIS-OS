@@ -71,7 +71,7 @@ minVolume = volumeRange[0]
 maxVolume = volumeRange[1]
 #print(minVolume)
 
-def mainer():
+def VolumeControlMain():
     while True:
         success, img = cap.read()
         
@@ -111,4 +111,4 @@ def mainer():
             break
 
 if __name__ == '__main__':
-    mainer()
+    VolumeControlMain()
