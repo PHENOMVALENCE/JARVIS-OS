@@ -1,10 +1,11 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+try:
+    import constants
+except:
+    from . import constants
 
-username = 'zuajngxkn70mj85em46i69e8r'
-client_id = "bb14c0d81681448798f0c1785c728ee8"
-client_secret = "7f2e35b56db04ebaaae233d76936fa45"
-redirect_uri = "http://localhost:8888/callback"
+
 
 def spotify_authenticate(client_id, client_secret, redirect_uri, username):
     scope = "user-read-currently-playing user-modify-playback-state"
@@ -58,4 +59,4 @@ def previous_song():
 def volume_control():
     return
     
-spotify = spotify_authenticate(client_id, client_secret, redirect_uri, username)
+spotify = spotify_authenticate(constants.client_id, constants.client_secret, constants.redirect_uri, constants.username)

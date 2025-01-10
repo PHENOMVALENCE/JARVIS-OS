@@ -710,6 +710,7 @@ if __name__ == '__main__':
   #Use threading to start the volume controller as well as the JARVIS bot in tandem
   print("Initializing startup sequence...")
   Speak(f"Good {find_time()} and welcome back sir! How can we get started today?")
-  print("Say something!")
+  print("\nTurn your microphone on and say something!\n")
+  send_to_GUI(False, "Turn your microphone on and say something!", False)
   threading.Thread(target=VolumeControlMain).start()
   threading.Thread(target=main).start()
