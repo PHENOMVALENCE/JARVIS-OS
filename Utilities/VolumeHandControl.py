@@ -51,11 +51,11 @@ cap = cv2.VideoCapture(0)
 cap.set(3, wCam)
 cap.set(4, hCam)
 previousTime = 0
-
+#Change detectionCon to change the detection confidence of the hand model, higher means it is harder to track, lower is easier. I have foound the sweet spot to be about .92 -.95
 detector = HandDetector(staticMode = False, 
                         maxHands = 2, 
                         modelComplexity= 1, 
-                        detectionCon= .95, 
+                        detectionCon= .92, 
                         minTrackCon= 0.6
                         )
 
@@ -94,7 +94,7 @@ def VolumeControlMain():
             handType2 = hand2["type"]
             
             volume_control(img, hand2, lmlist2, volume)
-            
+
 
         # ######-FPS CALCULATOR-#######
         # currentTime = time.time()
@@ -102,7 +102,7 @@ def VolumeControlMain():
         # previousTime = currentTime
         # cv2.putText(img, f'FPS: {int(fps)}', (40, 50), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 0, 0), 3)
         # #############################
-        
+
         
         #cv2.imshow("camera", img)
         cv2.imwrite(constants.vision_image, img)

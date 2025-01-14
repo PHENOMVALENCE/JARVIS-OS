@@ -64,6 +64,7 @@ from Utilities import constants #The import for the constants utility need for f
 def find_time():
   
   # Finds the time of day through the datetime library
+
   current_hour = datetime.datetime.now().hour
   if current_hour >= 0 and current_hour < 12:
     time_of_day = "morning"
@@ -74,6 +75,9 @@ def find_time():
   return time_of_day  
 
 def send_to_chatGPT(message):
+    
+    # Takes the user message to the model, and sends it to chatgpt through whichever model you prefer on the openai website
+
     global thread
     client.beta.threads.messages.create(thread.id, role="user", content = message)
     run = client.beta.threads.runs.create(thread_id=thread.id, assistant_id=assistant.id)
@@ -87,6 +91,9 @@ def send_to_chatGPT(message):
     return messages.data[0].content[0].text.value
 
 def send_to_llama(message):
+
+  # Takes the user message to the model, and sends it to the local ollama model, whichever one you prefer to use
+
   try:
     system_call = open(constants.system_call_file, "r")
     system_message = system_call.read()
@@ -109,6 +116,11 @@ def send_to_llama(message):
     return f"The request failed: {e}"
 
 def send_to_GUI(jarvis_text, text, new_window):
+  # Takes the user response/jarvis response, and two booleans to send to the graphical interface. The first boolean registers whether it is jarvis or the user speaking. The "text" variable is the text to be assigned to the GUI, and the "new_window" boolean determines weather the text is too long and should go into a new window.
+
+  #The GUI and the JARVIS program are technically run in seperate instances, as pygame does not like being run in threads for some reason. Therefore I needed to ditch pygame, or find a way for them to indirectly communicate without the two programs being directly linked. I am not a GUI developer, so I wanted to stick with pygame, and came up with this method. It saves pictures of the text to the directory, and then the GUI picks up those saved images. Sometimes, I surprise even myself with my ideas. If you think this is stupid and you have a better way of doing it, please let me know, I would love to hear your ideas to improve the program.
+
+  # accounts the size of the words in the text, uses newline characters to size the text accordingly.
   i = 0
   n_count = 0
   for character in text:
@@ -121,14 +133,15 @@ def send_to_GUI(jarvis_text, text, new_window):
 
   # Create a blank image
   image = np.zeros((n_count *  50 + 50, 1200, 3), dtype=np.uint8)
-  image[:] = (0, 0, 0) # set white background
+  image[:] = (0, 0, 0) # set black background
 
+  # set the position in the GUI based on the text size and number of newlines added
   textbook = text.split("\n")
 
   font = cv2.FONT_HERSHEY_TRIPLEX
   i = 0
   font_scale = .6
-  color = (255, 255, 255)  # Black
+  color = (255, 255, 255)  # white
   thickness = 1
   for texts in textbook:
       position = (10, 25 + 30 * i)
@@ -161,6 +174,7 @@ def Listen(loop: bool, dictate: bool):
   #If there is no speech in the time recognized by the "timeout" variable, the program will
   #shift to the "stasis_protocol" function. If there is text, it is sent back to the main function to be processed
   #the loop setting is set to "False", which is standard
+
   mixer.music.load(constants.mic_beep)
   mixer.music.play()
   cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.mic_png))
@@ -180,6 +194,7 @@ def Listen(loop: bool, dictate: bool):
         return result
     except KeyboardInterrupt:
         print("Operation interrupted successfully")
+
   #if the loop setting is set to "True", meaning it will loop infinitely. It will never be used, but it's good to have options just in case :)
   else:
     try:
@@ -188,7 +203,9 @@ def Listen(loop: bool, dictate: bool):
       print("Operation interrupted successfully")
 
 def Speak(GPT_response):
-  
+
+  #Takes the model response, and splits it into just speech if there is a command involved and speaks the speech part, but still prints the command to the GUI. If the resopnse is over 70 words, put the speech into a new window.
+
   global speak
 
   if not speak:
@@ -207,14 +224,14 @@ def Speak(GPT_response):
     engine.runAndWait()
     send_to_GUI(True, GPT_response, True)
     return
-  
+
   send_to_GUI(True, GPT_response, False)
   GPT_response = GPT_response.split("#")[0]
 
-  #Prints the response from chatgpt, and then saves the text-to-speech to an output file and plays it.
+  #Gets response from model, and then saves the text-to-speech to an output file and plays it.
   #Also some other options, elevenlabs cancelled my subscription, but the code for using it is there.
   #If all else fails, the microsoft code for text-to-speech is there but it's very bad and basically ancient.
-  #It has kind of grown on me though, so that's what will be the default use case
+  #It has kind of grown on me though and it's free, so that's what will be the default use case
 
 
   # ######-CODE FOR OPENAI TEXT-TO-SPEECH WITH STREAMING-###### -> https://community.openai.com/t/streaming-from-text-to-speech-api/493784/25
@@ -289,11 +306,11 @@ def Speak(GPT_response):
   engine.runAndWait()
 
 def stasis_protocol(pause = False):
-        
-  #If whisper doesn't detect any speech in the alloted time window, you will be sent to this function.
+
+  #If whisper doesn't detect any speech in the alloted time window or the command is called, you will be sent to this function.
   #It waits for the wake-word "JARVIS" to be said, and then picks up the conversation where you left off.
   #I am using pvporcupine to do this.      
-        
+
   #constants that will be changed later      
   porcupine = None
   pa = None
@@ -305,7 +322,7 @@ def stasis_protocol(pause = False):
     Spotify.play_song()
 
   try:
-    
+
     #Changes the constants into usable executable statements
     porcupine = pvporcupine.create(keywords = ['jarvis'], sensitivities= [0.5], access_key = constants.porcupine_API_key)
     pa = pyaudio.PyAudio()
@@ -316,7 +333,7 @@ def stasis_protocol(pause = False):
         input = True,
         frames_per_buffer= porcupine.frame_length
       )
-      
+
     #Waits for the user input and then continues the process.
     while True:
       pcm = audio_stream.read(porcupine.frame_length)
@@ -344,6 +361,8 @@ def stasis_protocol(pause = False):
 
 def executable_functions(intent):
 
+  #This is where all of the function calls come to be processed, the intent comes in through the jarvis response after the #, and gets parsed by the if statements based on which command it is. If it is a 1 or 2 part command, it is parsed by the "-" and each part is saved to it's own variable to be processed. All of this formatting is handled by the model in the system call to the model, or through your training to the OpenAI model.
+
   global speak
 
   if "-" in intent:
@@ -353,7 +372,7 @@ def executable_functions(intent):
       pass
     query = intent.split("-")[1]
     intent = intent.split("-")[0]
-    
+
   if "mute" in intent:
     print("\nSwitching to stasis protocols and will await your command.\n")
     send_to_GUI(True, "Switching to stasis protocols and will await your command.", False)
@@ -441,11 +460,13 @@ def executable_functions(intent):
     analyze_file(query)  
 
 def search_google_images(query):
+  # calls the google image crawler, super easy
   google_Crawler = GoogleImageCrawler(storage = ({"root_dir": constants.image_search_root_dir}))
   google_Crawler.crawl(keyword = query, max_num = 1)
 
 def search_google_text(query):
-  # Replace with your actual API key
+
+  # Replace with your actual API key in constants
   api_key = constants.google_search_API_key
 
   # Set up the parameters
@@ -479,6 +500,8 @@ def search_google_text(query):
 
 def image_generation(query):
 
+  #Uses the query given to jarvis to generate the AI image using the DALLE 3 system.
+
   client = openai.OpenAI(api_key= constants.OpenAI_API_key)
 
   response = client.images.generate(
@@ -501,6 +524,8 @@ def image_generation(query):
   return
 
 def vision(result):
+
+  #Uses the query given to jarvis to get the vision.jpg saved from the VolumeHandControl function and scans the world around you to answer the query given.
 
   Speak("Scanning in 3...")
   print("Scanning in 3...")
@@ -541,7 +566,7 @@ def vision(result):
         "content": [
           {
             "type": "text",
-            "text": f"Tell me about the image in the context of this prompt: {result}"
+            "text": f"Tell me about the image in the context of this prompt: {result}" #<-- change what you want the prompt to output here
           },
           {
             "type": "image_url",
@@ -571,6 +596,8 @@ def vision(result):
 
 def analyze_file(result):
   
+  #Uses the query given to jarvis and the image analyzer from openai to parse in an image file given to jarvis and analyze the image based on wha the user tells jarvis to do.
+
   # Function to encode the image
   def encode_image(image_path):
       with open(image_path, "rb") as image_file:
@@ -635,12 +662,13 @@ def analyze_file(result):
       print("I'm sorry sir, I didn't recieve a file.")
 
 def save_text(filename, message):
+  #Saves text given to jarvis into the "J.A.R.V.I.S. log files" directory under whatever file name you tell jarvis to put it under, 
   file = open(f"{constants.log_files_root_dir}\\{filename}.txt", "w")
   file.write(message)
   file.close()
 
 def send_message(message = ''):
-
+  # Sends a message to your phone, based on the credentials given, still experimental, however. If you find a better way to send messages to IOS, while also having return texts being sent to email(or just another way to communicate between IOS and python both ways), please let me know, as I have not found any better ways.
   sender_credentials = (constants.sender_email, constants.sender_provider_password)
 
   etext.send_sms_via_email(

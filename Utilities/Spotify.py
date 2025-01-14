@@ -5,8 +5,6 @@ try:
 except:
     from . import constants
 
-
-
 def spotify_authenticate(client_id, client_secret, redirect_uri, username):
     scope = "user-read-currently-playing user-modify-playback-state"
     auth_manager = SpotifyOAuth(client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scope=scope, username=username)
