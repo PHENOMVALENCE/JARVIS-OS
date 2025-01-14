@@ -217,11 +217,7 @@ def Speak(GPT_response):
   Spotify.stop_song()
 
   if len(GPT_response.split(" ")) > 70:
-    new_GPT_response = "I have compiled a catalog of information regarding your request. Hit 'escape' when you want to continue"
-    send_to_GUI(True, new_GPT_response, False)
-    engine = pyttsx3.init()
-    engine.say(new_GPT_response)
-    engine.runAndWait()
+    Speak("I have compiled a catalog of information regarding your request. Hit 'escape' when you want to continue")
     send_to_GUI(True, GPT_response, True)
     return
 
@@ -269,19 +265,6 @@ def Speak(GPT_response):
   #     p.terminate()
   # else:
   #   response.raise_for_status()
-  
-  
-  
-  ######-CODE FOR OPENAI TEXT-TO-SPEECH WITHOUT STREAMING-######
-  # response = openai.OpenAI(api_key=constants.OpenAI_API_key).audio.speech.create(
-  #     model="tts-1",
-  #     voice="onyx", #"onyx" for male voice, "nova" for female voice
-  #     input=f"{GPT_response}"
-  # )
-  # response.stream_to_file(".\\sounds\\output.mp3")
-  # sleep(.25)
-  # audio = AudioSegment.from_mp3(".\\sounds\\output.mp3")
-  # play(audio)
   
   ######-CODE FOR ELEVENLABS-######
   # voice = elevenlabs.Voice(
