@@ -15,7 +15,7 @@ text file. To learn in detail how each function works, reveiw that text file.
 
 A basic overveiw is also included below:
 
-- Control Volume with hand gestures - Use OpenCV and media pipe technology to control the volume on a WINDOWS operating system, must have a webcam included for opencv to find. JARVIS function will still work if no camera is to be found
+- Control Volume with hand gestures - Use OpenCV and media pipe technology to control the volume on a WINDOWS operating system, must have a webcam included for opencv to find. JARVIS function will still work if no camera is to be found. Also has full volume control through voice commands "volume up, down, level 50, etc."
 
 - full intent recognition - JARVIS can offer ideas and then follow up with commands based on what he believes to be the user's intentions
 
@@ -25,7 +25,7 @@ A basic overveiw is also included below:
 
 - Vision - JARVIS can use this function to see through the camera and answer any questions regarding what he sees
 
-- Spotify - Has full spotify control, can play, pause, skip, previous, and tell you what song is playing. Song searching through JARVIS coming in future installments
+- Spotify - Has full spotify control, can play, pause, skip, previous, and tell you what song is playing. Also allows for playing specific songs, adding songs to the queue, and 
 
 - save text - can save text files in the "J.A.R.V.I.S log files" folder based on what you ask him to save
 
