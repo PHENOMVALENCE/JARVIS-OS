@@ -42,7 +42,6 @@ eleven_labs_API_key = "Your_API_Key_Here"
 #Video for google cloud gmail api installation here: https://www.youtube.com/watch?v=7E3NNxeXiys watch up to 9 min mark, code is take care of
 
 ############ - Spotify info - #############
-username = "Your_username_Here"
 client_id = "Your_client_ID_here"
 client_secret = "Your_client_secret_here"
 redirect_uri = "http://localhost:8888/callback"
