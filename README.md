@@ -64,6 +64,7 @@ pip install whisper_mic
 ```
 pip install -r requirements.txt
 ```
+
 This will install all of the imports needed to run JARVIS
 
 2. Next, we need to input all of the API keys that will be used for the different functions. The API keys that are needed are as follows:
