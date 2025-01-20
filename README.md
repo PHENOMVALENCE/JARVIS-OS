@@ -58,9 +58,9 @@ There are many, many, many things to install, so let's get started. This setup p
 I have included a basic tutorial below, but for the full in-depth look on how to install all of these dependencies the correct way, while also getting a look on how to create the API keys and set up google cloud in order to effectively use all of the functions, head to my patreon here: [CLICK HERE](https://patreon.com/Hacker_Industries?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink)
 
 1. Firstly, download all of the files into the directory you wish to use JARVIS in. Then open a terminal and run the following command:
-
+```
 pip install -r requirements.txt
-
+```
 This will install all of the imports needed to run JARVIS
 
 2. Next, we need to input all of the API keys that will be used for the different functions. The API keys that are needed are as follows:
