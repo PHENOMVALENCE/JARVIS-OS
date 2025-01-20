@@ -684,11 +684,9 @@ with open(constants.system_call_file, "r") as file:
   #Go through 30 lines, and append each to the system call. If there is less than 30 lines, append what is left
   system_message = ''
   k = -1
-  iterations = 0
 
   #Find out how many iterations we need to go through
-  if line_num % 30:
-    iterations = (line_num / 30).__ceil__()
+  iterations = (line_num / 30).__ceil__()
 
   # go through each iteration and add the line to a string to be sent to the function call
   for i in range(iterations):
