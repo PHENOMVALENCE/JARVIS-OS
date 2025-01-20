@@ -23,7 +23,5 @@ pyttsx3==2.98
 Requests==2.32.3
 selenium==4.27.1
 spotipy==2.24.0
-torch==2.5.1+cu124
-whisper_mic==1.4.4
+torch==2.5.1
 wxPython==4.2.2
-pip install -- upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
