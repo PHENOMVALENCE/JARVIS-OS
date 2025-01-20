@@ -5,7 +5,7 @@ etext==0.0.1
 google_api_python_client==2.157.0
 google_auth_oauthlib==1.2.1
 icrawler==0.6.9
-numpy==2.2.1
+numpy==2.0
 ollama==0.4.5
 openai==1.59.6
 opencv_contrib_python==4.10.0.84
