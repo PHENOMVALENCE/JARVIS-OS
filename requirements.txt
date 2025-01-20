@@ -26,3 +26,4 @@ spotipy==2.24.0
 torch==2.5.1+cu124
 whisper_mic==1.4.4
 wxPython==4.2.2
+pip install -- upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
