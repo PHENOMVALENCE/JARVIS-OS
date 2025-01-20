@@ -43,7 +43,7 @@ eleven_labs_API_key = "Your_API_Key_Here"
 
 ############ - Spotify info - #############
 username = "Your_username_Here"
-client_id = "Your_client_id_Here"
-client_secret = "Your_client_secret_Here"
+client_id = "Your_client_ID_here"
+client_secret = "Your_client_secret_here"
 redirect_uri = "http://localhost:8888/callback"
 ###########################################

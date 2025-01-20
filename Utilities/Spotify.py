@@ -132,4 +132,4 @@ def volume_control(command, given_vol):
 spotify = spotify_authenticate(constants.client_id, constants.client_secret, constants.redirect_uri, constants.username)
 if __name__ == "__main__":
    #for testing
-   volume_control('control', 40)
+   add_to_queue('Bed_Chem')
