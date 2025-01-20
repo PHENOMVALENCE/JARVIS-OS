@@ -17,9 +17,9 @@ volumeRange = volume.GetVolumeRange()
 minVolume = volumeRange[0]
 maxVolume = volumeRange[1]
 
-def spotify_authenticate(client_id, client_secret, redirect_uri, username):
+def spotify_authenticate(client_id, client_secret, redirect_uri):
     scope = "user-read-currently-playing user-modify-playback-state"
-    auth_manager = SpotifyOAuth(client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scope=scope, username=username)
+    auth_manager = SpotifyOAuth(client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scope=scope)
     return spotipy.Spotify(auth_manager=auth_manager)
 
 def get_current_song():
@@ -129,7 +129,7 @@ def volume_control(command, given_vol):
 
 
 
-spotify = spotify_authenticate(constants.client_id, constants.client_secret, constants.redirect_uri, constants.username)
+spotify = spotify_authenticate(constants.client_id, constants.client_secret, constants.redirect_uri)
 if __name__ == "__main__":
    #for testing
    add_to_queue('Bed_Chem')
