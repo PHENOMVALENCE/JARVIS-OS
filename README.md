@@ -62,6 +62,9 @@ I have included a basic tutorial below, but for the full in-depth look on how to
 pip install whisper_mic
 ```
 ```
+pip install -- upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+```
+```
 pip install -r requirements.txt
 ```
 This will install all of the imports needed to run JARVIS
