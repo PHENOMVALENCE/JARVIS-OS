@@ -64,3 +64,4 @@ redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback
 llm_provider = os.getenv("JARVIS_LLM_PROVIDER", "ollama").lower()
 ollama_model = os.getenv("OLLAMA_MODEL", "gemma2:2b")
 enable_hand_volume = env_bool("JARVIS_ENABLE_HAND_VOLUME", False)
+input_mode = os.getenv("JARVIS_INPUT_MODE", "voice").lower()

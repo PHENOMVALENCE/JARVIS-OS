@@ -167,14 +167,11 @@ def Listen(loop: bool, dictate: bool):
       result = result.lower()
       mixer.music.play()
       cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.background_png))
-      while "timeout: no speech detected within the specified time." in result:
-        print("\nSwitching to stasis protocols and will await your command.\n")
-        send_to_GUI(True, "Switching to stasis protocols and will await your command.", False)
-        stasis_protocol()
-        result = mic.listen(timeout = 10)
-        result = result.lower()
-      else:
-        return result
+      if "timeout: no speech detected within the specified time." in result:
+        print("\nNo speech detected. Listening again...\n")
+        cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.background_png))
+        return None
+      return result
     except KeyboardInterrupt:
         print("Operation interrupted successfully")
   #if the loop setting is set to "True", meaning it will loop infinitely. It will never be used, but it's good to have options just in case :)
@@ -194,7 +191,8 @@ def Speak(GPT_response):
     send_to_GUI(True, GPT_response, False)
     return
 
-  Spotify.stop_song()
+  if Spotify.spotify is not None:
+    Spotify.stop_song()
 
   if len(GPT_response.split(" ")) > 70:
     Speak("I have compiled a catalog of information regarding your request. Hit 'escape' when you want to continue")
@@ -723,13 +721,16 @@ def main():
   while True:
     #gets the user input from the whisper function, or through an input method for TESTING ONLY
     if speak:
-      #result = Listen(loop, dictate)
-      result = input('Type now: ')
+      result = (Listen(loop, dictate)
+                if constants.input_mode == "voice"
+                else input('Type now: '))
     else:
       result = None
       #start scanning for incoming messages from the phone via email
       while not result:
         result = IOS.recieve_message()
+    if not result:
+      continue
     send_to_GUI(False, result, False)
 
     #print user's message and add the current time to send to the model

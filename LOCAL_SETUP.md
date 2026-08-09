@@ -23,7 +23,9 @@ Set-Location "C:\Users\PHENOM-PC\Documents\ChatGPT\JARVIS OS\J.A.R.V.I.S"
 .\Start-Jarvis.ps1
 ```
 
-The current Mark 5 source prompts for typed input even though Whisper initializes the microphone. This matches the upstream code: its active line is `input('Type now: ')` and the voice-listening line is commented out. Do not assume always-listening voice input is active yet.
+The installed version defaults to conversational voice mode. After each spoken reply, JARVIS listens again for the next sentence. If ten seconds pass without speech, it starts another listening window.
+
+To temporarily use the keyboard instead, set `JARVIS_INPUT_MODE=text` in `.env` and restart JARVIS.
 
 To launch only the graphical display, double-click `Start-GUI.cmd`. Mark 5 and the GUI are separate processes in the upstream design.
 
@@ -37,6 +39,7 @@ The safe default configuration is:
 JARVIS_LLM_PROVIDER=ollama
 OLLAMA_MODEL=gemma2:2b
 JARVIS_ENABLE_HAND_VOLUME=false
+JARVIS_INPUT_MODE=voice
 ```
 
 Hand-volume control is disabled initially so the webcam does not start automatically. Set it to `true` only when that behavior is wanted.
