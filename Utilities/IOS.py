@@ -57,7 +57,7 @@ def recieve_message():
 
             #Make sure that the email is from my phone before scanning
             if providers.PROVIDERS[constants.phone_provider]['mms_support'] == True:
-                if sender == f'{constants.phone_number}@{providers.PROVIDERS[constants.phone_provider]['mms']}':
+                if sender == f"{constants.phone_number}@{providers.PROVIDERS[constants.phone_provider]['mms']}":
                     parts = payload.get('parts')[0]
                     attachment_id = parts['body']['attachmentId']
                     attachment = service.users().messages().attachments().get(userId = 'me', messageId = i['id'], id=attachment_id).execute()
@@ -75,4 +75,5 @@ def recieve_message():
     except HttpError as error:
         print(f"An error has occured: {error}")
 
-recieve_message()
+if __name__ == "__main__":
+    recieve_message()

@@ -5,7 +5,8 @@ etext==0.0.1
 google_api_python_client==2.157.0
 google_auth_oauthlib==1.2.1
 icrawler==0.6.9
-numpy==2.0
+numpy==1.26.4
+mediapipe==0.10.14
 ollama==0.4.5
 openai==1.59.6
 opencv_contrib_python==4.10.0.84
@@ -25,3 +26,5 @@ selenium==4.27.1
 spotipy==2.24.0
 torch==2.5.1
 wxPython==4.2.2
+python-dotenv==1.1.0
+whisper_mic

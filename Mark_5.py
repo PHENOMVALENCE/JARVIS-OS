@@ -94,7 +94,7 @@ def send_to_llama(message):
     conversation_history.append({'role': 'user', 'content': message})
 
         # Include the system message and conversation history in the request
-    response = ollama.chat(model='gemma2', messages=[*conversation_history])
+    response = ollama.chat(model=constants.ollama_model, messages=[*conversation_history])
 
         # Add the AI response to the conversation history
     conversation_history.append({'role': 'assistant', 'content': response['message']['content']})
@@ -658,10 +658,19 @@ def send_message(message = ''):
 ##########-CONSTANTS AND API KEYS-############
 ##############################################
 
-# Retrieve the assistant and thread after initializing openai
-client = openai.OpenAI(api_key=constants.OpenAI_API_key)
-assistant = client.beta.assistants.retrieve(constants.OpenAI_assistant_ID)
-thread = client.beta.threads.retrieve(constants.OpenAI_thread_ID)
+# Retrieve cloud resources only when OpenAI mode is explicitly configured.
+client = assistant = thread = None
+if constants.llm_provider == "openai":
+  missing = [name for name, value in {
+    "OPENAI_API_KEY": constants.OpenAI_API_key,
+    "OPENAI_ASSISTANT_ID": constants.OpenAI_assistant_ID,
+    "OPENAI_THREAD_ID": constants.OpenAI_thread_ID,
+  }.items() if not value]
+  if missing:
+    raise RuntimeError(f"OpenAI mode requires: {', '.join(missing)}")
+  client = openai.OpenAI(api_key=constants.OpenAI_API_key)
+  assistant = client.beta.assistants.retrieve(constants.OpenAI_assistant_ID)
+  thread = client.beta.threads.retrieve(constants.OpenAI_thread_ID)
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -728,7 +737,9 @@ def main():
     result = result + " " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     #print the model's response
-    jarvis_response = send_to_llama(result)
+    jarvis_response = (send_to_chatGPT(result)
+                       if constants.llm_provider == "openai"
+                       else send_to_llama(result))
     print(f"\nJ.A.R.V.I.S: {jarvis_response}")
     Speak(jarvis_response)
     
@@ -744,5 +755,6 @@ if __name__ == '__main__':
   Speak(f"Good {find_time()} and welcome back sir! How can we get started today?")
   print("\nTurn your microphone on and say something!\n")
   send_to_GUI(False, "Turn your microphone on and say something!", False)
-  threading.Thread(target=VolumeControlMain).start()
+  if constants.enable_hand_volume:
+    threading.Thread(target=VolumeControlMain, daemon=True).start()
   threading.Thread(target=main).start()

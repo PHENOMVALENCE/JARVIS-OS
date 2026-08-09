@@ -1,0 +1,7 @@
+.venv/
+.env
+__pycache__/
+*.py[cod]
+caches and calls/client.json
+caches and calls/token.json
+.cache/
