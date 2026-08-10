@@ -45,8 +45,11 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = ""):
         self.home = (home or Path.home()).resolve()
+        self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
+        self.settings_repo = settings_repo
+        self.openai_api_key = openai_api_key
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -71,6 +74,7 @@ class WindowsActions:
             "invoke_ui": self.invoke_ui,
             "set_ui_text": self.set_ui_text,
             "select_ui": self.select_ui,
+            "analyze_screen": self.analyze_screen,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -248,12 +252,14 @@ class WindowsActions:
         return ActionResult(True, f"Set {title} window to {operation}.")
 
     def screenshot(self, _args: dict) -> ActionResult:
-        from PIL import ImageGrab
-        folder = Path(__file__).resolve().parent.parent / "data" / "screenshots"
-        folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"screenshot-{datetime.now():%Y%m%d-%H%M%S}.png"
-        ImageGrab.grab(all_screens=True).save(path)
-        return ActionResult(True, f"Screenshot saved as {path.name}.", {"matches": [str(path)]})
+        from .screen import ScreenService
+        return ScreenService(self.data_dir, self.settings_repo, self.openai_api_key).capture()
+
+    def analyze_screen(self, args: dict) -> ActionResult:
+        from .screen import ScreenService
+        return ScreenService(self.data_dir, self.settings_repo, self.openai_api_key).capture(
+            analyze=True, prompt=str(args.get("prompt", "Describe the visible screen and any important text or controls."))
+        )
 
     @staticmethod
     def read_clipboard(_args: dict) -> ActionResult:

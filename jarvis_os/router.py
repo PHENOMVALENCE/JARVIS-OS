@@ -72,7 +72,12 @@ class CommandRouter:
             return Command("change_volume", {"delta": -10}, raw_text=raw)
 
         if normalized in {"take a screenshot", "take screenshot", "capture the screen", "screenshot"}:
-            return Command("screenshot", raw_text=raw)
+            return Command("screenshot", risk=Risk.MEDIUM, raw_text=raw)
+
+        match = re.match(r"(?:what(?:'s| is) on (?:my |the )?screen|analyze (?:my |the )?screen|describe (?:my |the )?screen)(?:\s+(.+))?", normalized)
+        if match:
+            prompt = match.group(1) or "Describe the visible screen and identify important text and controls."
+            return Command("analyze_screen", {"prompt": prompt}, Risk.MEDIUM, raw)
 
         match = re.match(r"(?:read|inspect)\s+(?:the\s+)?(.+?)\s+window$", normalized)
         if match:

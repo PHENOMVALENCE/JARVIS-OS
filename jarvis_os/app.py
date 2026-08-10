@@ -42,7 +42,12 @@ class JarvisApp:
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
         self.audit = audit
         self.plugins = PluginManager(
-            self.settings.project_root / "plugins", database, WindowsActions(), self.settings.data_dir
+            self.settings.project_root / "plugins", database,
+            WindowsActions(
+                data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
+                openai_api_key=self.settings.openai_api_key,
+            ),
+            self.settings.data_dir,
         )
         executor = SecureExecutor(self.plugins, audit, self.confirm_action, self.permissions_repo)
         self.workflows = WorkflowEngine(

@@ -13,7 +13,7 @@ from .storage import PermissionRepository, SettingsRepository
 ACTIONS = (
     "open_app", "open_folder", "find_files", "web_search", "spotify_play",
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
-    "screenshot", "read_clipboard", "notification", "work_mode", "type_text",
+    "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
     "close_app", "delete_path",
 )
 

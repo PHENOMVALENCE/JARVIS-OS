@@ -43,6 +43,10 @@ class CommandRouterTests(unittest.TestCase):
         self.assertEqual(click.risk, Risk.MEDIUM)
         self.assertEqual(self.router.route("Select second result in Spotify").action, "select_ui")
 
+    def test_screen_capture_requires_confirmation(self):
+        self.assertEqual(self.router.route("Take a screenshot").risk, Risk.MEDIUM)
+        self.assertEqual(self.router.route("What is on my screen").action, "analyze_screen")
+
 
 if __name__ == "__main__":
     unittest.main()
