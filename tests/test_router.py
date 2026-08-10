@@ -36,6 +36,13 @@ class CommandRouterTests(unittest.TestCase):
         self.assertEqual(self.router.route("Start work mode").action, "work_mode")
         self.assertEqual(self.router.route("Type hello world").risk, Risk.MEDIUM)
 
+    def test_routes_structured_ui_automation(self):
+        self.assertEqual(self.router.route("Read the Notepad window").action, "inspect_ui")
+        click = self.router.route("Click Save in Notepad")
+        self.assertEqual(click.action, "invoke_ui")
+        self.assertEqual(click.risk, Risk.MEDIUM)
+        self.assertEqual(self.router.route("Select second result in Spotify").action, "select_ui")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -74,6 +74,25 @@ class CommandRouter:
         if normalized in {"take a screenshot", "take screenshot", "capture the screen", "screenshot"}:
             return Command("screenshot", raw_text=raw)
 
+        match = re.match(r"(?:read|inspect)\s+(?:the\s+)?(.+?)\s+window$", normalized)
+        if match:
+            return Command("inspect_ui", {"window": match.group(1)}, raw_text=raw)
+
+        match = re.match(r"(?:click|press|activate)\s+(.+?)\s+in\s+(.+)", normalized)
+        if match:
+            return Command("invoke_ui", {"control": match.group(1), "window": match.group(2)}, Risk.MEDIUM, raw)
+
+        match = re.match(r"(?:enter|set)\s+(.+?)\s+in\s+(.+?)\s+(?:field|box)\s+in\s+(.+)", normalized)
+        if match:
+            return Command(
+                "set_ui_text", {"text": match.group(1), "control": match.group(2), "window": match.group(3)},
+                Risk.MEDIUM, raw,
+            )
+
+        match = re.match(r"select\s+(.+?)\s+in\s+(.+)", normalized)
+        if match:
+            return Command("select_ui", {"item": match.group(1), "window": match.group(2)}, Risk.MEDIUM, raw)
+
         if normalized in {"read clipboard", "what is on my clipboard", "show clipboard"}:
             return Command("read_clipboard", raw_text=raw)
 

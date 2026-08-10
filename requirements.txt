@@ -22,6 +22,7 @@ pynput==1.7.7
 python_weather==2.0.7
 pyttsx3==2.98
 pystray==0.19.5
+pywinauto==0.6.9
 Requests==2.32.3
 selenium==4.27.1
 spotipy==2.24.0

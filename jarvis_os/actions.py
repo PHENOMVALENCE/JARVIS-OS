@@ -67,6 +67,10 @@ class WindowsActions:
             "type_text": self.type_text,
             "notification": self.notification,
             "work_mode": self.work_mode,
+            "inspect_ui": self.inspect_ui,
+            "invoke_ui": self.invoke_ui,
+            "set_ui_text": self.set_ui_text,
+            "select_ui": self.select_ui,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -283,3 +287,20 @@ class WindowsActions:
         for app in (item.strip() for item in configured.split(",") if item.strip()):
             messages.append(self.open_app({"name": app}).message)
         return ActionResult(True, "Work mode started. " + " ".join(messages))
+
+    @staticmethod
+    def _automation():
+        from .ui_automation import UIAutomationService
+        return UIAutomationService()
+
+    def inspect_ui(self, args: dict) -> ActionResult:
+        return self._automation().read(str(args["window"]))
+
+    def invoke_ui(self, args: dict) -> ActionResult:
+        return self._automation().invoke(str(args["window"]), str(args["control"]))
+
+    def set_ui_text(self, args: dict) -> ActionResult:
+        return self._automation().set_text(str(args["window"]), str(args["control"]), str(args["text"]))
+
+    def select_ui(self, args: dict) -> ActionResult:
+        return self._automation().select(str(args["window"]), str(args["item"]))
