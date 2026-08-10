@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules
-
-hiddenimports = []
-for package in ("winrt", "pywinauto", "whisper_mic", "ollama", "winotify", "pystray"):
-    hiddenimports += collect_submodules(package)
+hiddenimports = [
+    "ollama", "openai", "torch", "whisper_mic", "pyttsx3", "pystray",
+    "pywinauto", "winotify", "winrt.windows.security.credentials.ui",
+    "pypdf", "docx", "pptx", "openpyxl", "icalendar", "send2trash",
+]
 
 analysis = Analysis(
     ["Mark_7.py"],
