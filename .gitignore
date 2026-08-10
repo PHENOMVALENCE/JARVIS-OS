@@ -5,3 +5,6 @@ __pycache__/
 caches and calls/client.json
 caches and calls/token.json
 .cache/
+data/
+*.db-shm
+*.db-wal

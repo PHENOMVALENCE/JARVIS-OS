@@ -9,4 +9,4 @@ if (-not (Test-Path $Python)) {
 Set-Location $ProjectRoot
 $Ffmpeg = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter ffmpeg.exe -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($Ffmpeg) { $env:Path = "$($Ffmpeg.DirectoryName);$env:Path" }
-& $Python "Mark_5.py"
+& $Python "Mark_6.py"

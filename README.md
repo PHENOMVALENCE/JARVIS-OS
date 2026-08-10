@@ -1,5 +1,36 @@
-# J.A.R.V.I.S System Overview
-The full J.A.R.V.I.S. operating system, beta testing Mark 5. The full suystem is designed and tested to be ran on the WINDOWS 11 OS
+# J.A.R.V.I.S Mark 6
+
+J.A.R.V.I.S Mark 6 is a Windows 11 desktop assistant with simultaneous keyboard and push-to-talk voice input, local or cloud conversation, permission-controlled PC actions, persistent memory, an audit trail, system-tray operation, and automatic startup at sign-in.
+
+## Quick start
+
+```powershell
+Set-Location "C:\path\to\J.A.R.V.I.S"
+.\Setup-Jarvis.ps1
+.\Start-Jarvis.ps1
+```
+
+The default configuration uses the local `gemma2:2b` Ollama model. Type into the input box and press Enter, or press **MIC** and speak. See [COMMANDS.md](COMMANDS.md) for supported PC commands.
+
+To start J.A.R.V.I.S automatically after Windows login:
+
+```powershell
+.\Install-Startup.ps1
+```
+
+Disable automatic startup with `.\Remove-Startup.ps1`. The scheduled task runs only in the signed-in user's interactive session, uses limited privileges, prevents duplicate app instances, and retries after a crash.
+
+## Safety model
+
+Commands are converted into typed local actions. The language model is not given arbitrary PowerShell or command-prompt execution. Opening apps, folders, searches, and normal media actions run immediately. Typing into another application, closing apps, and moving files to the Recycle Bin require visible confirmation. Deletion is recoverable and restricted to the current user's home directory. Attempts and results are recorded locally in `data\jarvis.db`.
+
+Private credentials belong in `.env`, which is ignored by Git. Copy `.env.example` and configure only the integrations you intend to use.
+
+## Legacy Mark 5 documentation
+
+The original Mark 5 runtime remains in the repository for reference. `Start-Jarvis.ps1` now launches Mark 6.
+
+# Original system overview
 
 JARVIS is one of the first fully integrated systems that can be spoken to and run locally or through an API, right before speaking it's response back to you and running the command given to it. Using OpenAI's Whisper model for the speech-to-text, either OpenAI's ChatGPT API or Ollama's Gemma2 model for local running, and either OpenAI's, elevenlabs, or microsoft's text-to-speech, there are many different ways to customize your experience. This os is designed to be fully run on any computer system, regardless of processing power(However more processing power always helps). 
 
