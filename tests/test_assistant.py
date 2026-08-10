@@ -37,6 +37,15 @@ class AssistantControllerTests(unittest.TestCase):
         controller.process("Do not remember this")
         self.assertEqual(self.store.recent(), [])
 
+    def test_document_search_synthesizes_cited_answer(self):
+        self.executor.execute.return_value = ActionResult(
+            True, "Found passages.", {"matches": ["C:\\docs\\plan.pdf#page=2\nLaunch budget is 12000"]}
+        )
+        reply = self.controller.process("Search my documents for launch budget")
+        self.assertEqual(reply.text, "Hello there.")
+        self.provider.reply.assert_called_once()
+        self.assertIn("plan.pdf#page=2", self.provider.reply.call_args.args[0][1]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

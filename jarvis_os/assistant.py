@@ -106,6 +106,13 @@ class AssistantController:
         if command.action != "chat":
             result = self.executor.execute(command)
             details = result.data.get("matches") if result.data else None
+            if command.action == "semantic_search" and result.success and details:
+                context = "\n\n".join(details)
+                answer = self.provider.reply([
+                    {"role": "system", "content": "Answer only from the supplied local document passages. Cite each source path and page used. Say when the evidence is insufficient."},
+                    {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
+                ])
+                return AssistantReply(answer, details)
             return AssistantReply(result.message, details)
         memory_enabled = not self.settings_repo or self.settings_repo.get("conversation_memory", True)
         if memory_enabled:
