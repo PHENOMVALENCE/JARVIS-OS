@@ -110,11 +110,13 @@ class SecureExecutor:
         audit: AuditLog,
         confirm: ConfirmCallback | None = None,
         permissions: PermissionRepository | None = None,
+        high_risk_verifier=None,
     ):
         self.actions = actions
         self.audit = audit
         self.confirm = confirm
         self.permissions = permissions
+        self.high_risk_verifier = high_risk_verifier
 
     def execute(self, command: Command) -> ActionResult:
         default_mode = "ask" if command.risk in {Risk.MEDIUM, Risk.HIGH} else "allow"
@@ -127,6 +129,8 @@ class SecureExecutor:
         approved = mode == "allow"
         if needs_approval and self.confirm:
             approved = bool(self.confirm(command))
+        if approved and command.risk == Risk.HIGH and self.high_risk_verifier:
+            approved = bool(self.high_risk_verifier(f"Approve high-risk action: {command.action}"))
         if not approved:
             result = ActionResult(False, f"Cancelled {command.action}; confirmation was required.")
         else:

@@ -34,6 +34,7 @@ spotipy==2.24.0
 torch==2.5.1
 wxPython==4.2.2
 winotify==1.1.0
+winrt-Windows.Security.Credentials.UI==3.2.1
 python-dotenv==1.1.0
 Send2Trash==1.8.3
 whisper_mic

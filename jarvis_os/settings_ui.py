@@ -48,11 +48,13 @@ class SettingsWindow(tk.Toplevel):
         self.memory = tk.BooleanVar(value=values["conversation_memory"])
         self.privacy = tk.BooleanVar(value=values["privacy_mode"])
         self.proactive = tk.BooleanVar(value=values.get("proactive_enabled", True))
+        self.hello = tk.BooleanVar(value=values.get("hello_for_high_risk", False))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
             ("Privacy mode (blocks capture and cloud features)", self.privacy),
             ("Proactive reminders and system health alerts", self.proactive),
+            ("Require Windows Hello for high-risk actions", self.hello),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -80,6 +82,9 @@ class SettingsWindow(tk.Toplevel):
         self.quiet_start = ttk.Entry(quiet, width=10); self.quiet_start.insert(0, values.get("quiet_hours_start", "22:00")); self.quiet_start.pack(side="left")
         ttk.Label(quiet, text=" to ").pack(side="left")
         self.quiet_end = ttk.Entry(quiet, width=10); self.quiet_end.insert(0, values.get("quiet_hours_end", "07:00")); self.quiet_end.pack(side="left")
+        ttk.Label(frame, text="Security inactivity timeout (minutes)").pack(anchor="w", pady=(12, 2))
+        self.security_timeout = ttk.Spinbox(frame, from_=1, to=240)
+        self.security_timeout.set(values.get("security_timeout_minutes", 15)); self.security_timeout.pack(fill="x")
 
     def _build_permissions(self):
         frame = ttk.Frame(self.tabs, padding=18)
@@ -136,6 +141,7 @@ class SettingsWindow(tk.Toplevel):
             "embedding_model": self.embedding_model.get().strip() or "nomic-embed-text",
             "proactive_enabled": self.proactive.get(),
             "quiet_hours_start": self.quiet_start.get().strip(), "quiet_hours_end": self.quiet_end.get().strip(),
+            "hello_for_high_risk": self.hello.get(), "security_timeout_minutes": int(self.security_timeout.get()),
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)

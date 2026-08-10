@@ -103,6 +103,8 @@ class SettingsRepository:
         "proactive_enabled": True,
         "quiet_hours_start": "22:00",
         "quiet_hours_end": "07:00",
+        "hello_for_high_risk": False,
+        "security_timeout_minutes": 15,
     }
 
     def __init__(self, database: Database):

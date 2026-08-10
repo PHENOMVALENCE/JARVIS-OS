@@ -20,6 +20,7 @@ from .workflows import WorkflowEngine, WorkflowRepository
 from .workflow_ui import WorkflowWindow
 from .knowledge import KnowledgeIndex
 from .proactive import ProactiveScheduler
+from .user_presence import SecuritySession
 
 
 BG = "#070b12"
@@ -43,6 +44,10 @@ class JarvisApp:
         self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
         self.audit = audit
+        self.security_session = SecuritySession(
+            timeout_minutes=int(self.settings_repo.get("security_timeout_minutes", 15)),
+            always_verify=bool(self.settings_repo.get("hello_for_high_risk", False)),
+        )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
         self.plugins = PluginManager(
             self.settings.project_root / "plugins", database,
@@ -52,7 +57,10 @@ class JarvisApp:
             ),
             self.settings.data_dir,
         )
-        executor = SecureExecutor(self.plugins, audit, self.confirm_action, self.permissions_repo)
+        executor = SecureExecutor(
+            self.plugins, audit, self.confirm_action, self.permissions_repo,
+            self.security_session.authorize,
+        )
         self.workflows = WorkflowEngine(
             WorkflowRepository(database), executor, database, self.settings_repo
         )
@@ -69,6 +77,7 @@ class JarvisApp:
         threading.Thread(target=self._worker, daemon=True, name="jarvis-actions").start()
         threading.Thread(target=self._speaker, daemon=True, name="jarvis-speech").start()
         self._start_tray()
+        self._start_emergency_hotkey()
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
 
@@ -146,6 +155,7 @@ class JarvisApp:
             self.add_message("YOU", text)
             self.set_status("working")
             self.work.put(text)
+            self.security_session.touch()
         return "break"
 
     def listen(self) -> None:
@@ -166,6 +176,7 @@ class JarvisApp:
         self.add_message("YOU", text)
         self.set_status("working")
         self.work.put(text)
+        self.security_session.touch()
 
     def _worker(self) -> None:
         while (text := self.work.get()) is not None:
@@ -234,6 +245,25 @@ class JarvisApp:
         except Exception:
             self.tray_icon = None
 
+    def _start_emergency_hotkey(self) -> None:
+        try:
+            from pynput.keyboard import GlobalHotKeys
+            self.emergency_hotkey = GlobalHotKeys({"<ctrl>+<alt>+j": lambda: self.root.after(0, self.emergency_stop)})
+            self.emergency_hotkey.start()
+        except Exception:
+            self.emergency_hotkey = None
+
+    def emergency_stop(self) -> None:
+        self.workflows.cancel()
+        while True:
+            try:
+                self.work.get_nowait()
+            except queue.Empty:
+                break
+        self.security_session.lock()
+        self.add_message("J.A.R.V.I.S", "Emergency stop activated. Pending work was cleared and sensitive actions are locked.")
+        self.set_status("stopped", "#ff6b7a")
+
     def hide_window(self) -> None:
         if self.tray_icon:
             self.root.withdraw()
@@ -253,6 +283,8 @@ class JarvisApp:
         self.speech.put(None)
         if self.tray_icon:
             self.tray_icon.stop()
+        if self.emergency_hotkey:
+            self.emergency_hotkey.stop()
         self.proactive.stop()
         self.root.destroy()
 
