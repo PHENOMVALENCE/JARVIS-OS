@@ -16,7 +16,7 @@ The original Python 3.13 and 3.14 installations were not changed.
 
 ## Start J.A.R.V.I.S
 
-Double-click `Start-Jarvis.cmd`, or run this in PowerShell. Both launch the unified Mark 6 desktop app:
+Double-click `Start-Jarvis.cmd`, or run this in PowerShell. Both launch the unified Mark 7 desktop app:
 
 ```powershell
 Set-Location "C:\Users\PHENOM-PC\Documents\ChatGPT\JARVIS OS\J.A.R.V.I.S"
