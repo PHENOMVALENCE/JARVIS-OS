@@ -19,6 +19,7 @@ from .storage import Database, PermissionRepository, SettingsRepository
 from .workflows import WorkflowEngine, WorkflowRepository
 from .workflow_ui import WorkflowWindow
 from .knowledge import KnowledgeIndex
+from .proactive import ProactiveScheduler
 
 
 BG = "#070b12"
@@ -59,6 +60,7 @@ class JarvisApp:
         self.controller = AssistantController(
             executor, store, make_provider(self.settings), self.plugins, self.workflows
         )
+        self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
         self.tray_icon = None
         self._closing = False
 
@@ -67,6 +69,7 @@ class JarvisApp:
         threading.Thread(target=self._worker, daemon=True, name="jarvis-actions").start()
         threading.Thread(target=self._speaker, daemon=True, name="jarvis-speech").start()
         self._start_tray()
+        self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
 
     def _configure_window(self) -> None:
@@ -250,6 +253,7 @@ class JarvisApp:
         self.speech.put(None)
         if self.tray_icon:
             self.tray_icon.stop()
+        self.proactive.stop()
         self.root.destroy()
 
 

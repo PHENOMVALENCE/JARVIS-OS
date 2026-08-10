@@ -47,10 +47,12 @@ class SettingsWindow(tk.Toplevel):
         self.startup = tk.BooleanVar(value=values["startup_enabled"])
         self.memory = tk.BooleanVar(value=values["conversation_memory"])
         self.privacy = tk.BooleanVar(value=values["privacy_mode"])
+        self.proactive = tk.BooleanVar(value=values.get("proactive_enabled", True))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
             ("Privacy mode (blocks capture and cloud features)", self.privacy),
+            ("Proactive reminders and system health alerts", self.proactive),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -73,6 +75,11 @@ class SettingsWindow(tk.Toplevel):
         self.embedding_model = ttk.Entry(frame)
         self.embedding_model.insert(0, values.get("embedding_model", "nomic-embed-text"))
         self.embedding_model.pack(fill="x")
+        ttk.Label(frame, text="Quiet hours (start and end, HH:MM)").pack(anchor="w", pady=(12, 2))
+        quiet = ttk.Frame(frame); quiet.pack(fill="x")
+        self.quiet_start = ttk.Entry(quiet, width=10); self.quiet_start.insert(0, values.get("quiet_hours_start", "22:00")); self.quiet_start.pack(side="left")
+        ttk.Label(quiet, text=" to ").pack(side="left")
+        self.quiet_end = ttk.Entry(quiet, width=10); self.quiet_end.insert(0, values.get("quiet_hours_end", "07:00")); self.quiet_end.pack(side="left")
 
     def _build_permissions(self):
         frame = ttk.Frame(self.tabs, padding=18)
@@ -127,6 +134,8 @@ class SettingsWindow(tk.Toplevel):
             "work_apps": [item.strip() for item in self.work_apps.get().split(",") if item.strip()],
             "indexed_folders": [item.strip() for item in self.indexed_folders.get("1.0", "end").splitlines() if item.strip()],
             "embedding_model": self.embedding_model.get().strip() or "nomic-embed-text",
+            "proactive_enabled": self.proactive.get(),
+            "quiet_hours_start": self.quiet_start.get().strip(), "quiet_hours_end": self.quiet_end.get().strip(),
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)

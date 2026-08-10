@@ -52,6 +52,14 @@ MIGRATIONS = (
         embedding TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_document_chunks_path ON document_chunks(path);""",
+    """CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY,
+        event_key TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        urgency TEXT NOT NULL
+    );""",
 )
 
 
@@ -92,6 +100,9 @@ class SettingsRepository:
         "work_apps": ["terminal", "spotify"],
         "indexed_folders": [],
         "embedding_model": "nomic-embed-text",
+        "proactive_enabled": True,
+        "quiet_hours_start": "22:00",
+        "quiet_hours_end": "07:00",
     }
 
     def __init__(self, database: Database):
