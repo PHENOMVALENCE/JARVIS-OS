@@ -14,7 +14,7 @@ opencv_contrib_python==4.10.0.84
 opencv_python==4.10.0.84
 Pillow==11.1.0
 openpyxl==3.1.5
-protobuf==5.29.3
+protobuf==4.25.3
 pvporcupine==3.0.3
 PyAudio==0.2.14
 pycaw==20240210
