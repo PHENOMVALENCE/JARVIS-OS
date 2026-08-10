@@ -16,18 +16,16 @@ The original Python 3.13 and 3.14 installations were not changed.
 
 ## Start J.A.R.V.I.S
 
-Double-click `Start-Jarvis.cmd`, or run this in PowerShell:
+Double-click `Start-Jarvis.cmd`, or run this in PowerShell. Both launch the unified Mark 6 desktop app:
 
 ```powershell
 Set-Location "C:\Users\PHENOM-PC\Documents\ChatGPT\JARVIS OS\J.A.R.V.I.S"
 .\Start-Jarvis.ps1
 ```
 
-The installed version defaults to conversational voice mode. After each spoken reply, JARVIS listens again for the next sentence. If ten seconds pass without speech, it starts another listening window.
+Keyboard and push-to-talk microphone input are available together. Closing the window minimizes it to the notification area by default; use the tray menu to exit fully.
 
-To temporarily use the keyboard instead, set `JARVIS_INPUT_MODE=text` in `.env` and restart JARVIS.
-
-To launch only the graphical display, double-click `Start-GUI.cmd`. Mark 5 and the GUI are separate processes in the upstream design.
+Enable automatic startup with `.\Install-Startup.ps1` and disable it with `.\Remove-Startup.ps1`.
 
 ## Private configuration
 
@@ -40,6 +38,10 @@ JARVIS_LLM_PROVIDER=ollama
 OLLAMA_MODEL=gemma2:2b
 JARVIS_ENABLE_HAND_VOLUME=false
 JARVIS_INPUT_MODE=voice
+JARVIS_SPEAK_RESPONSES=true
+JARVIS_MINIMIZE_TO_TRAY=true
+JARVIS_WHISPER_MODEL=base
+JARVIS_WORK_APPS=terminal,spotify
 ```
 
 Hand-volume control is disabled initially so the webcam does not start automatically. Set it to `true` only when that behavior is wanted.
