@@ -13,6 +13,8 @@ from .assistant import AssistantController, ConversationStore, VoiceInput, make_
 from .commands import Command
 from .security import AuditLog, SecureExecutor
 from .settings import Settings
+from .settings_ui import SettingsWindow
+from .storage import Database, PermissionRepository, SettingsRepository
 
 
 BG = "#070b12"
@@ -31,8 +33,12 @@ class JarvisApp:
         self.work: queue.Queue[str | None] = queue.Queue()
         self.speech: queue.Queue[str | None] = queue.Queue()
         self.voice = VoiceInput(self.settings.whisper_model)
+        database = Database(self.settings.data_dir / "jarvis.db")
+        self.settings_repo = SettingsRepository(database)
+        self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
-        executor = SecureExecutor(WindowsActions(), audit, self.confirm_action)
+        self.audit = audit
+        executor = SecureExecutor(WindowsActions(), audit, self.confirm_action, self.permissions_repo)
         store = ConversationStore(self.settings.data_dir / "conversation.db")
         self.controller = AssistantController(executor, store, make_provider(self.settings))
         self.tray_icon = None
@@ -58,6 +64,10 @@ class JarvisApp:
         tk.Label(header, text="J.A.R.V.I.S", fg=ACCENT, bg=BG, font=("Segoe UI Semibold", 22)).pack(side="left")
         self.status = tk.Label(header, text="● READY", fg=SUCCESS, bg=BG, font=("Segoe UI Semibold", 10))
         self.status.pack(side="right")
+        tk.Button(
+            header, text="SETTINGS", command=self.open_settings, bg=BG, fg=MUTED,
+            activebackground=PANEL, activeforeground=TEXT, relief="flat", cursor="hand2",
+        ).pack(side="right", padx=(0, 18))
 
         self.transcript = scrolledtext.ScrolledText(
             self.root, wrap="word", bg=PANEL, fg=TEXT, insertbackground=TEXT,
@@ -143,8 +153,11 @@ class JarvisApp:
     def _deliver(self, text: str, details: list[str] | None) -> None:
         self.add_message("J.A.R.V.I.S", text, details)
         self.set_status("ready", SUCCESS)
-        if self.settings.speak_responses:
+        if self.settings_repo.get("speak_responses", self.settings.speak_responses):
             self.speech.put(text)
+
+    def open_settings(self) -> None:
+        SettingsWindow(self.root, self.settings_repo, self.permissions_repo, self.audit, self.settings.project_root)
 
     def _speaker(self) -> None:
         engine = None
