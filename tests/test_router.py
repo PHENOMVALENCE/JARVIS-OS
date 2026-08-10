@@ -47,6 +47,11 @@ class CommandRouterTests(unittest.TestCase):
         self.assertEqual(self.router.route("Take a screenshot").risk, Risk.MEDIUM)
         self.assertEqual(self.router.route("What is on my screen").action, "analyze_screen")
 
+    def test_package_management_is_high_risk(self):
+        command = self.router.route("Install package VideoLAN.VLC")
+        self.assertEqual(command.action, "install_package")
+        self.assertEqual(command.risk, Risk.HIGH)
+
 
 if __name__ == "__main__":
     unittest.main()

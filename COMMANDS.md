@@ -13,6 +13,8 @@
 - `Capture project decision to Notion`
 - `Home Assistant status`
 - `Send email to name@example.com subject Hello message Checking in` — requires high-risk confirmation
+- `Install package VideoLAN.VLC` — exact Winget ID, confirmation, and optional Windows Hello
+- `Update package VideoLAN.VLC` — exact Winget ID, confirmation, and optional Windows Hello
 
 Indexed folders are opt-in under **Settings → General**. Search results include source paths and PDF/slide/sheet page references. Optional integration secrets are stored with `python Manage-Credentials.py`.
 

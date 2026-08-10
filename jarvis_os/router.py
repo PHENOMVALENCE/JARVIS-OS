@@ -57,6 +57,14 @@ class CommandRouter:
         if match:
             return Command("open_app", {"name": match.group(1)}, raw_text=raw)
 
+        match = re.match(r"install package\s+([a-z0-9._-]+)", normalized)
+        if match:
+            return Command("install_package", {"package_id": match.group(1)}, Risk.HIGH, raw)
+
+        match = re.match(r"(?:upgrade|update) package\s+([a-z0-9._-]+)", normalized)
+        if match:
+            return Command("upgrade_package", {"package_id": match.group(1)}, Risk.HIGH, raw)
+
         match = re.match(r"(?:play|listen to)\s+(.+?)(?:\s+on spotify)?$", normalized)
         if match and match.group(1) not in {"music", "spotify"}:
             return Command("spotify_play", {"query": match.group(1)}, raw_text=raw)

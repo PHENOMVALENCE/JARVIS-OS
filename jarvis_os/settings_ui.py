@@ -17,6 +17,7 @@ ACTIONS = (
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
     "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
     "close_app", "delete_path", "index_documents", "semantic_search",
+    "install_package", "upgrade_package",
 )
 
 

@@ -78,6 +78,8 @@ class WindowsActions:
             "analyze_screen": self.analyze_screen,
             "index_documents": self.index_documents,
             "semantic_search": self.semantic_search,
+            "install_package": self.install_package,
+            "upgrade_package": self.upgrade_package,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -269,6 +271,28 @@ class WindowsActions:
 
     def semantic_search(self, args: dict) -> ActionResult:
         return self.knowledge.search(str(args["query"])) if self.knowledge else ActionResult(False, "Knowledge index unavailable.")
+
+    @staticmethod
+    def install_package(args: dict) -> ActionResult:
+        package_id = str(args["package_id"]).strip()
+        if not package_id or not all(character.isalnum() or character in ".-_" for character in package_id):
+            return ActionResult(False, "Package IDs may contain only letters, numbers, dots, hyphens, and underscores.")
+        completed = subprocess.run(
+            ["winget", "install", "--id", package_id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements"],
+            capture_output=True, text=True, timeout=900,
+        )
+        return ActionResult(completed.returncode == 0, completed.stdout.strip()[-1000:] or completed.stderr.strip()[-1000:])
+
+    @staticmethod
+    def upgrade_package(args: dict) -> ActionResult:
+        package_id = str(args["package_id"]).strip()
+        if not package_id or not all(character.isalnum() or character in ".-_" for character in package_id):
+            return ActionResult(False, "Invalid package ID.")
+        completed = subprocess.run(
+            ["winget", "upgrade", "--id", package_id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements"],
+            capture_output=True, text=True, timeout=900,
+        )
+        return ActionResult(completed.returncode == 0, completed.stdout.strip()[-1000:] or completed.stderr.strip()[-1000:])
 
     @staticmethod
     def read_clipboard(_args: dict) -> ActionResult:
