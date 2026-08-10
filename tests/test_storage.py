@@ -16,7 +16,7 @@ class StorageTests(unittest.TestCase):
     def test_migrations_are_idempotent(self):
         Database(self.database.path)
         with self.database.connect() as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 3)
 
     def test_settings_use_typed_json_values(self):
         settings = SettingsRepository(self.database)

@@ -87,14 +87,19 @@ class AssistantReply:
 
 
 class AssistantController:
-    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider, plugins=None):
+    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider, plugins=None, workflows=None):
         self.executor = executor
         self.store = store
         self.provider = provider
         self.router = CommandRouter()
         self.plugins = plugins
+        self.workflows = workflows
 
     def process(self, text: str) -> AssistantReply:
+        workflow = self.workflows.match_voice(text) if self.workflows else None
+        if workflow:
+            result = self.workflows.run(workflow)
+            return AssistantReply(result.message)
         command = self.plugins.route(text) if self.plugins else None
         command = command or self.router.route(text)
         if command.action != "chat":

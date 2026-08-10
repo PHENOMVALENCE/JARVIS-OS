@@ -16,6 +16,7 @@ from .plugins import PluginManager
 from .settings import Settings
 from .settings_ui import SettingsWindow
 from .storage import Database, PermissionRepository, SettingsRepository
+from .workflows import WorkflowEngine, WorkflowRepository
 
 
 BG = "#070b12"
@@ -43,8 +44,13 @@ class JarvisApp:
             self.settings.project_root / "plugins", database, WindowsActions(), self.settings.data_dir
         )
         executor = SecureExecutor(self.plugins, audit, self.confirm_action, self.permissions_repo)
+        self.workflows = WorkflowEngine(
+            WorkflowRepository(database), executor, database, self.settings_repo
+        )
         store = ConversationStore(self.settings.data_dir / "conversation.db")
-        self.controller = AssistantController(executor, store, make_provider(self.settings), self.plugins)
+        self.controller = AssistantController(
+            executor, store, make_provider(self.settings), self.plugins, self.workflows
+        )
         self.tray_icon = None
         self._closing = False
 

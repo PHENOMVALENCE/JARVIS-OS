@@ -31,6 +31,14 @@ MIGRATIONS = (
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     );""",
+    """CREATE TABLE IF NOT EXISTS workflow_runs (
+        id INTEGER PRIMARY KEY,
+        workflow_id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        status TEXT NOT NULL,
+        message TEXT NOT NULL DEFAULT ''
+    );""",
 )
 
 
