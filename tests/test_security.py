@@ -1,0 +1,41 @@
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import Mock
+
+from jarvis_os.commands import ActionResult, Command, Risk
+from jarvis_os.security import AuditLog, SecureExecutor
+
+
+class SecureExecutorTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.audit = AuditLog(Path(self.temp.name) / "audit.db")
+        self.actions = Mock()
+        self.actions.execute.return_value = ActionResult(True, "done")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_low_risk_action_runs_without_prompt(self):
+        confirm = Mock()
+        result = SecureExecutor(self.actions, self.audit, confirm).execute(Command("open_app"))
+        self.assertTrue(result.success)
+        confirm.assert_not_called()
+
+    def test_sensitive_action_can_be_cancelled(self):
+        command = Command("delete_path", {"path": "notes"}, Risk.HIGH)
+        result = SecureExecutor(self.actions, self.audit, lambda _: False).execute(command)
+        self.assertFalse(result.success)
+        self.actions.execute.assert_not_called()
+        self.assertEqual(self.audit.recent()[0]["approved"], 0)
+
+    def test_approved_action_is_executed_and_logged(self):
+        command = Command("close_app", {"name": "spotify"}, Risk.MEDIUM)
+        result = SecureExecutor(self.actions, self.audit, lambda _: True).execute(command)
+        self.assertTrue(result.success)
+        self.assertEqual(self.audit.recent()[0]["success"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
