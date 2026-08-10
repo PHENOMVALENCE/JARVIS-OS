@@ -43,6 +43,9 @@ class CommandRouter:
         if match:
             return Command("find_files", {"query": match.group(1)}, raw_text=raw)
 
+        if normalized in {"start work mode", "begin work mode", "work mode"}:
+            return Command("work_mode", raw_text=raw)
+
         match = re.match(r"(?:open|launch|start)\s+(.+)", normalized)
         if match:
             return Command("open_app", {"name": match.group(1)}, raw_text=raw)
@@ -67,6 +70,28 @@ class CommandRouter:
             return Command("change_volume", {"delta": 10}, raw_text=raw)
         if normalized in {"volume down", "turn it down"}:
             return Command("change_volume", {"delta": -10}, raw_text=raw)
+
+        if normalized in {"take a screenshot", "take screenshot", "capture the screen", "screenshot"}:
+            return Command("screenshot", raw_text=raw)
+
+        if normalized in {"read clipboard", "what is on my clipboard", "show clipboard"}:
+            return Command("read_clipboard", raw_text=raw)
+
+        match = re.match(r"(?:switch to|focus|bring up)\s+(.+)", normalized)
+        if match:
+            return Command("focus_window", {"title": match.group(1)}, raw_text=raw)
+
+        match = re.match(r"(minimize|maximize|restore)\s+(.+)", normalized)
+        if match:
+            return Command("window_state", {"operation": match.group(1), "title": match.group(2)}, raw_text=raw)
+
+        match = re.match(r"(?:type|enter)\s+(.+)", normalized)
+        if match:
+            return Command("type_text", {"text": match.group(1)}, Risk.MEDIUM, raw)
+
+        match = re.match(r"(?:show|display) notification\s+(.+)", normalized)
+        if match:
+            return Command("notification", {"message": match.group(1)}, raw_text=raw)
 
         match = re.match(r"(?:copy|put)\s+(.+?)(?:\s+to (?:the )?clipboard)?$", normalized)
         if match:

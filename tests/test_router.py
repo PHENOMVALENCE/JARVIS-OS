@@ -30,6 +30,12 @@ class CommandRouterTests(unittest.TestCase):
     def test_unknown_text_becomes_chat(self):
         self.assertEqual(self.router.route("Explain quantum computing").action, "chat")
 
+    def test_routes_advanced_desktop_actions(self):
+        self.assertEqual(self.router.route("Take a screenshot").action, "screenshot")
+        self.assertEqual(self.router.route("Switch to Notepad").action, "focus_window")
+        self.assertEqual(self.router.route("Start work mode").action, "work_mode")
+        self.assertEqual(self.router.route("Type hello world").risk, Risk.MEDIUM)
+
 
 if __name__ == "__main__":
     unittest.main()

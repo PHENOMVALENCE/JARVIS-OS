@@ -6,6 +6,7 @@ import ctypes
 import os
 import subprocess
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 from urllib.parse import quote
@@ -59,6 +60,13 @@ class WindowsActions:
             "copy_clipboard": self.copy_clipboard,
             "close_app": self.close_app,
             "delete_path": self.delete_path,
+            "screenshot": self.screenshot,
+            "read_clipboard": self.read_clipboard,
+            "focus_window": self.focus_window,
+            "window_state": self.window_state,
+            "type_text": self.type_text,
+            "notification": self.notification,
+            "work_mode": self.work_mode,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -200,3 +208,78 @@ class WindowsActions:
             return ActionResult(False, "Deletion is limited to items inside your user folder.")
         send2trash(str(path))
         return ActionResult(True, f"Moved {path.name} to the Recycle Bin.")
+
+    @staticmethod
+    def _matching_window(title: str) -> int | None:
+        user32 = ctypes.windll.user32
+        matches: list[int] = []
+        callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+        def inspect(handle, _extra):
+            length = user32.GetWindowTextLengthW(handle)
+            if length and user32.IsWindowVisible(handle):
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(handle, buffer, length + 1)
+                if title.lower() in buffer.value.lower():
+                    matches.append(handle)
+            return True
+        user32.EnumWindows(callback_type(inspect), 0)
+        return matches[0] if matches else None
+
+    def focus_window(self, args: dict) -> ActionResult:
+        title = str(args["title"])
+        handle = self._matching_window(title)
+        if not handle:
+            return ActionResult(False, f"No visible window matched {title}.")
+        ctypes.windll.user32.ShowWindow(handle, 9)
+        ctypes.windll.user32.SetForegroundWindow(handle)
+        return ActionResult(True, f"Focused the {title} window.")
+
+    def window_state(self, args: dict) -> ActionResult:
+        title, operation = str(args["title"]), str(args["operation"])
+        handle = self._matching_window(title)
+        if not handle:
+            return ActionResult(False, f"No visible window matched {title}.")
+        codes = {"minimize": 6, "maximize": 3, "restore": 9}
+        ctypes.windll.user32.ShowWindow(handle, codes[operation])
+        return ActionResult(True, f"Set {title} window to {operation}.")
+
+    def screenshot(self, _args: dict) -> ActionResult:
+        from PIL import ImageGrab
+        folder = Path(__file__).resolve().parent.parent / "data" / "screenshots"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"screenshot-{datetime.now():%Y%m%d-%H%M%S}.png"
+        ImageGrab.grab(all_screens=True).save(path)
+        return ActionResult(True, f"Screenshot saved as {path.name}.", {"matches": [str(path)]})
+
+    @staticmethod
+    def read_clipboard(_args: dict) -> ActionResult:
+        completed = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+            capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        text = completed.stdout.strip()
+        if completed.returncode or not text:
+            return ActionResult(False, "The clipboard is empty or could not be read.")
+        return ActionResult(True, "Clipboard contents:", {"matches": [text]})
+
+    @staticmethod
+    def type_text(args: dict) -> ActionResult:
+        from pynput.keyboard import Controller
+        text = str(args["text"])
+        Controller().type(text)
+        return ActionResult(True, f"Typed {len(text)} character(s) into the active window.")
+
+    @staticmethod
+    def notification(args: dict) -> ActionResult:
+        message = str(args["message"])
+        ctypes.windll.user32.MessageBoxW(0, message, "J.A.R.V.I.S", 0x40)
+        return ActionResult(True, "Notification displayed.")
+
+    def work_mode(self, _args: dict) -> ActionResult:
+        configured = os.getenv("JARVIS_WORK_APPS", "").strip()
+        if not configured:
+            return ActionResult(False, "Work mode is not configured. Set JARVIS_WORK_APPS in .env.")
+        messages = []
+        for app in (item.strip() for item in configured.split(",") if item.strip()):
+            messages.append(self.open_app({"name": app}).message)
+        return ActionResult(True, "Work mode started. " + " ".join(messages))
