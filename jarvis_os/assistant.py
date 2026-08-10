@@ -87,14 +87,16 @@ class AssistantReply:
 
 
 class AssistantController:
-    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider):
+    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider, plugins=None):
         self.executor = executor
         self.store = store
         self.provider = provider
         self.router = CommandRouter()
+        self.plugins = plugins
 
     def process(self, text: str) -> AssistantReply:
-        command = self.router.route(text)
+        command = self.plugins.route(text) if self.plugins else None
+        command = command or self.router.route(text)
         if command.action != "chat":
             result = self.executor.execute(command)
             details = result.data.get("matches") if result.data else None

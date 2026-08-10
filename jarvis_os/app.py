@@ -12,6 +12,7 @@ from .actions import WindowsActions
 from .assistant import AssistantController, ConversationStore, VoiceInput, make_provider
 from .commands import Command
 from .security import AuditLog, SecureExecutor
+from .plugins import PluginManager
 from .settings import Settings
 from .settings_ui import SettingsWindow
 from .storage import Database, PermissionRepository, SettingsRepository
@@ -38,9 +39,12 @@ class JarvisApp:
         self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
         self.audit = audit
-        executor = SecureExecutor(WindowsActions(), audit, self.confirm_action, self.permissions_repo)
+        self.plugins = PluginManager(
+            self.settings.project_root / "plugins", database, WindowsActions(), self.settings.data_dir
+        )
+        executor = SecureExecutor(self.plugins, audit, self.confirm_action, self.permissions_repo)
         store = ConversationStore(self.settings.data_dir / "conversation.db")
-        self.controller = AssistantController(executor, store, make_provider(self.settings))
+        self.controller = AssistantController(executor, store, make_provider(self.settings), self.plugins)
         self.tray_icon = None
         self._closing = False
 
