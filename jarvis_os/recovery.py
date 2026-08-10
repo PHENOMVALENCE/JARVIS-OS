@@ -14,7 +14,7 @@ def create_backup(data_dir: Path, destination: Path) -> Path:
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         if data_dir.is_dir():
             for path in data_dir.rglob("*"):
-                if path.is_file() and path.suffix not in {".db-wal", ".db-shm"}:
+                if path.is_file() and path.resolve() != archive.resolve() and path.suffix not in {".db-wal", ".db-shm"}:
                     bundle.write(path, path.relative_to(data_dir))
     return archive
 

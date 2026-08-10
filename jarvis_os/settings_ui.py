@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import subprocess
+import json
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
+from pathlib import Path
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from .security import AuditLog
 from .storage import PermissionRepository, SettingsRepository
@@ -37,6 +39,7 @@ class SettingsWindow(tk.Toplevel):
         self._build_permissions()
         self._build_plugins()
         self._build_audit()
+        self._build_data_tools()
         ttk.Button(self, text="Save", command=self.save).pack(pady=(0, 12))
 
     def _build_general(self):
@@ -138,6 +141,16 @@ class SettingsWindow(tk.Toplevel):
             ttk.Label(row, text=status).pack(side="right")
             self.plugin_vars[item["id"]] = variable
 
+    def _build_data_tools(self):
+        frame = ttk.Frame(self.tabs, padding=18)
+        self.tabs.add(frame, text="Data")
+        ttk.Label(frame, text="Settings exports never include passwords, API keys, or integration tokens.", wraplength=620).pack(anchor="w", pady=(0, 16))
+        ttk.Button(frame, text="Export settings", command=self._export_settings).pack(anchor="w", pady=4)
+        ttk.Button(frame, text="Import settings", command=self._import_settings).pack(anchor="w", pady=4)
+        ttk.Separator(frame).pack(fill="x", pady=16)
+        ttk.Button(frame, text="Back up local J.A.R.V.I.S data", command=self._backup).pack(anchor="w", pady=4)
+        ttk.Button(frame, text="Restore local data backup", command=self._restore).pack(anchor="w", pady=4)
+
     def save(self):
         before_startup = bool(self.settings_repo.get("startup_enabled"))
         values = {
@@ -177,3 +190,41 @@ class SettingsWindow(tk.Toplevel):
         if messagebox.askyesno("Clear memory", "Permanently clear stored conversation history?", parent=self):
             self.conversation_store.clear()
             messagebox.showinfo("Memory", "Conversation history cleared.", parent=self)
+
+    def _export_settings(self):
+        path = filedialog.asksaveasfilename(parent=self, defaultextension=".json", filetypes=[("JSON", "*.json")])
+        if path:
+            Path(path).write_text(json.dumps(self.settings_repo.export_safe(), indent=2), encoding="utf-8")
+
+    def _import_settings(self):
+        path = filedialog.askopenfilename(parent=self, filetypes=[("JSON", "*.json")])
+        if not path:
+            return
+        try:
+            values = json.loads(Path(path).read_text(encoding="utf-8"))
+            if not isinstance(values, dict):
+                raise ValueError("Settings file must contain a JSON object.")
+            allowed = set(self.settings_repo.DEFAULTS)
+            for key, value in values.items():
+                if key in allowed:
+                    self.settings_repo.set(key, value)
+            messagebox.showinfo("Settings", "Settings imported. Restart J.A.R.V.I.S to apply all changes.", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Import failed", str(exc), parent=self)
+
+    def _backup(self):
+        destination = filedialog.askdirectory(parent=self)
+        if destination:
+            from .recovery import create_backup
+            path = create_backup(self.settings_repo.database.path.parent, Path(destination))
+            messagebox.showinfo("Backup complete", f"Created {path}", parent=self)
+
+    def _restore(self):
+        archive = filedialog.askopenfilename(parent=self, filetypes=[("J.A.R.V.I.S backup", "*.zip")])
+        if archive and messagebox.askyesno("Restore backup", "Restore this backup and restart J.A.R.V.I.S afterward?", parent=self):
+            try:
+                from .recovery import restore_backup
+                restore_backup(Path(archive), self.settings_repo.database.path.parent)
+                messagebox.showinfo("Restore complete", "Backup restored. Restart J.A.R.V.I.S.", parent=self)
+            except Exception as exc:
+                messagebox.showerror("Restore failed", str(exc), parent=self)
