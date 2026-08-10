@@ -39,6 +39,19 @@ MIGRATIONS = (
         status TEXT NOT NULL,
         message TEXT NOT NULL DEFAULT ''
     );""",
+    """CREATE TABLE IF NOT EXISTS indexed_documents (
+        path TEXT PRIMARY KEY,
+        modified REAL NOT NULL,
+        indexed_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS document_chunks (
+        id INTEGER PRIMARY KEY,
+        path TEXT NOT NULL,
+        page INTEGER,
+        content TEXT NOT NULL,
+        embedding TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_document_chunks_path ON document_chunks(path);""",
 )
 
 
@@ -77,6 +90,8 @@ class SettingsRepository:
         "ollama_model": "gemma2:2b",
         "whisper_model": "base",
         "work_apps": ["terminal", "spotify"],
+        "indexed_folders": [],
+        "embedding_model": "nomic-embed-text",
     }
 
     def __init__(self, database: Database):

@@ -31,6 +31,13 @@ class CommandRouter:
         if match:
             return Command("web_search", {"query": match.group(1)}, raw_text=raw)
 
+        if normalized in {"index my documents", "update document index", "index documents"}:
+            return Command("index_documents", risk=Risk.MEDIUM, raw_text=raw)
+
+        match = re.match(r"(?:search|find) (?:my )?(?:documents|knowledge|files) for\s+(.+)", normalized)
+        if match:
+            return Command("semantic_search", {"query": match.group(1)}, raw_text=raw)
+
         match = re.match(r"(?:open|show)\s+(?:my\s+)?(.+?)\s+folder$", normalized)
         if match:
             return Command("open_folder", {"path": self._folder(match.group(1))}, raw_text=raw)

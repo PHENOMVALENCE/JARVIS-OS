@@ -45,11 +45,12 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = ""):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
         self.openai_api_key = openai_api_key
+        self.knowledge = knowledge
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -75,6 +76,8 @@ class WindowsActions:
             "set_ui_text": self.set_ui_text,
             "select_ui": self.select_ui,
             "analyze_screen": self.analyze_screen,
+            "index_documents": self.index_documents,
+            "semantic_search": self.semantic_search,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -260,6 +263,12 @@ class WindowsActions:
         return ScreenService(self.data_dir, self.settings_repo, self.openai_api_key).capture(
             analyze=True, prompt=str(args.get("prompt", "Describe the visible screen and any important text or controls."))
         )
+
+    def index_documents(self, _args: dict) -> ActionResult:
+        return self.knowledge.index_configured() if self.knowledge else ActionResult(False, "Knowledge index unavailable.")
+
+    def semantic_search(self, args: dict) -> ActionResult:
+        return self.knowledge.search(str(args["query"])) if self.knowledge else ActionResult(False, "Knowledge index unavailable.")
 
     @staticmethod
     def read_clipboard(_args: dict) -> ActionResult:

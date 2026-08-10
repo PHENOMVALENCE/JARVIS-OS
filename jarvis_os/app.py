@@ -18,6 +18,7 @@ from .settings_ui import SettingsWindow
 from .storage import Database, PermissionRepository, SettingsRepository
 from .workflows import WorkflowEngine, WorkflowRepository
 from .workflow_ui import WorkflowWindow
+from .knowledge import KnowledgeIndex
 
 
 BG = "#070b12"
@@ -41,11 +42,12 @@ class JarvisApp:
         self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
         self.audit = audit
+        self.knowledge = KnowledgeIndex(database, self.settings_repo)
         self.plugins = PluginManager(
             self.settings.project_root / "plugins", database,
             WindowsActions(
                 data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
-                openai_api_key=self.settings.openai_api_key,
+                openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
             ),
             self.settings.data_dir,
         )

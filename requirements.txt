@@ -12,6 +12,7 @@ openai==1.59.6
 opencv_contrib_python==4.10.0.84
 opencv_python==4.10.0.84
 Pillow==11.1.0
+openpyxl==3.1.5
 protobuf==5.29.3
 pvporcupine==3.0.3
 PyAudio==0.2.14
@@ -23,6 +24,9 @@ python_weather==2.0.7
 pyttsx3==2.98
 pystray==0.19.5
 pywinauto==0.6.9
+pypdf==5.9.0
+python-docx==1.2.0
+python-pptx==1.0.2
 Requests==2.32.3
 selenium==4.27.1
 spotipy==2.24.0
