@@ -30,6 +30,13 @@ class AssistantControllerTests(unittest.TestCase):
         self.assertEqual(reply.text, "Hello there.")
         self.assertEqual([item["role"] for item in self.store.recent()], ["user", "assistant"])
 
+    def test_chat_can_run_without_persistent_memory(self):
+        settings = Mock()
+        settings.get.return_value = False
+        controller = AssistantController(self.executor, self.store, self.provider, settings_repo=settings)
+        controller.process("Do not remember this")
+        self.assertEqual(self.store.recent(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

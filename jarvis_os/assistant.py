@@ -87,13 +87,14 @@ class AssistantReply:
 
 
 class AssistantController:
-    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider, plugins=None, workflows=None):
+    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider, plugins=None, workflows=None, settings_repo=None):
         self.executor = executor
         self.store = store
         self.provider = provider
         self.router = CommandRouter()
         self.plugins = plugins
         self.workflows = workflows
+        self.settings_repo = settings_repo
 
     def process(self, text: str) -> AssistantReply:
         workflow = self.workflows.match_voice(text) if self.workflows else None
@@ -106,10 +107,14 @@ class AssistantController:
             result = self.executor.execute(command)
             details = result.data.get("matches") if result.data else None
             return AssistantReply(result.message, details)
-        self.store.append("user", text)
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *self.store.recent()]
+        memory_enabled = not self.settings_repo or self.settings_repo.get("conversation_memory", True)
+        if memory_enabled:
+            self.store.append("user", text)
+        history = self.store.recent() if memory_enabled else [{"role": "user", "content": text}]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history]
         reply = self.provider.reply(messages)
-        self.store.append("assistant", reply)
+        if memory_enabled:
+            self.store.append("assistant", reply)
         return AssistantReply(reply)
 
 

@@ -69,7 +69,7 @@ class JarvisApp:
         )
         store = ConversationStore(self.settings.data_dir / "conversation.db")
         self.controller = AssistantController(
-            executor, store, make_provider(self.settings), self.plugins, self.workflows
+            executor, store, make_provider(self.settings), self.plugins, self.workflows, self.settings_repo
         )
         self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
         self.tray_icon = None
@@ -201,7 +201,7 @@ class JarvisApp:
     def open_settings(self) -> None:
         SettingsWindow(
             self.root, self.settings_repo, self.permissions_repo, self.audit,
-            self.settings.project_root, self.plugins,
+            self.settings.project_root, self.plugins, self.controller.store,
         )
 
     def open_workflows(self) -> None:

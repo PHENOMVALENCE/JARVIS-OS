@@ -19,15 +19,16 @@ ACTIONS = (
 
 
 class SettingsWindow(tk.Toplevel):
-    def __init__(self, parent, settings: SettingsRepository, permissions: PermissionRepository, audit: AuditLog, project_root, plugins=None):
+    def __init__(self, parent, settings: SettingsRepository, permissions: PermissionRepository, audit: AuditLog, project_root, plugins=None, conversation_store=None):
         super().__init__(parent)
         self.settings_repo = settings
         self.permissions_repo = permissions
         self.audit = audit
         self.project_root = project_root
         self.plugins = plugins
+        self.conversation_store = conversation_store
         self.title("J.A.R.V.I.S Settings")
-        self.geometry("760x610")
+        self.geometry("820x780")
         self.minsize(650, 500)
         self.transient(parent)
         self.tabs = ttk.Notebook(self)
@@ -94,7 +95,11 @@ class SettingsWindow(tk.Toplevel):
         )
         configured = self.permissions_repo.all()
         self.permission_vars = {}
-        for row, action in enumerate(ACTIONS, start=1):
+        actions = list(ACTIONS)
+        if self.plugins:
+            for loaded in self.plugins.plugins.values():
+                actions.extend(name for name in loaded.manifest.actions if name not in actions)
+        for row, action in enumerate(actions, start=1):
             default = "ask" if action in {"type_text", "close_app", "delete_path"} else "allow"
             ttk.Label(frame, text=action.replace("_", " ").title()).grid(row=row, column=0, sticky="w", pady=3)
             variable = tk.StringVar(value=configured.get(action, default))
@@ -112,6 +117,10 @@ class SettingsWindow(tk.Toplevel):
             status = "OK" if item["success"] else "BLOCKED/FAILED"
             text.insert("end", f'{item["created_at"]}  {status:14} {item["action"]}\n  {item["message"]}\n\n')
         text.configure(state="disabled")
+        integrity = "Verified" if self.audit.verify() else "WARNING: audit chain verification failed"
+        ttk.Label(frame, text=f"Audit integrity: {integrity}").pack(anchor="w", pady=(8, 0))
+        if self.conversation_store:
+            ttk.Button(frame, text="Clear conversation memory", command=self._clear_memory).pack(anchor="e", pady=(8, 0))
 
     def _build_plugins(self):
         frame = ttk.Frame(self.tabs, padding=18)
@@ -163,3 +172,8 @@ class SettingsWindow(tk.Toplevel):
                 return
         messagebox.showinfo("Settings", "Settings saved. Model and microphone changes apply after restart.", parent=self)
         self.destroy()
+
+    def _clear_memory(self):
+        if messagebox.askyesno("Clear memory", "Permanently clear stored conversation history?", parent=self):
+            self.conversation_store.clear()
+            messagebox.showinfo("Memory", "Conversation history cleared.", parent=self)
