@@ -295,11 +295,13 @@ class WindowsActions:
         return ActionResult(True, "Notification displayed.")
 
     def work_mode(self, _args: dict) -> ActionResult:
-        configured = os.getenv("JARVIS_WORK_APPS", "").strip()
+        configured = self.settings_repo.get("work_apps", []) if self.settings_repo else []
+        if not configured:
+            configured = [item.strip() for item in os.getenv("JARVIS_WORK_APPS", "").split(",") if item.strip()]
         if not configured:
             return ActionResult(False, "Work mode is not configured. Set JARVIS_WORK_APPS in .env.")
         messages = []
-        for app in (item.strip() for item in configured.split(",") if item.strip()):
+        for app in configured:
             messages.append(self.open_app({"name": app}).message)
         return ActionResult(True, "Work mode started. " + " ".join(messages))
 

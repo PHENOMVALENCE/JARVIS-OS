@@ -150,9 +150,10 @@ class VoiceInput:
         return result.strip()
 
 
-def make_provider(settings: Settings) -> ChatProvider:
+def make_provider(settings: Settings, settings_repo=None) -> ChatProvider:
     if settings.llm_provider == "openai":
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is required when JARVIS_LLM_PROVIDER=openai.")
         return OpenAIProvider(settings.openai_api_key)
-    return OllamaProvider(settings.ollama_model)
+    model = settings_repo.get("ollama_model", settings.ollama_model) if settings_repo else settings.ollama_model
+    return OllamaProvider(model)

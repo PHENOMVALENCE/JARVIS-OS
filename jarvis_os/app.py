@@ -41,7 +41,7 @@ class JarvisApp:
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
         self.work: queue.Queue[str | None] = queue.Queue()
         self.speech: queue.Queue[str | None] = queue.Queue()
-        self.voice = VoiceInput(self.settings.whisper_model)
+        self.voice = None
         database = Database(self.settings.data_dir / "jarvis.db")
         self.settings_repo = SettingsRepository(database)
         self.permissions_repo = PermissionRepository(database)
@@ -69,7 +69,7 @@ class JarvisApp:
         )
         store = ConversationStore(self.settings.data_dir / "conversation.db")
         self.controller = AssistantController(
-            executor, store, make_provider(self.settings), self.plugins, self.workflows, self.settings_repo
+            executor, store, make_provider(self.settings, self.settings_repo), self.plugins, self.workflows, self.settings_repo
         )
         self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
         self.tray_icon = None
@@ -92,7 +92,8 @@ class JarvisApp:
         self.root.geometry("980x700")
         self.root.minsize(720, 520)
         self.root.configure(bg=BG)
-        self.root.protocol("WM_DELETE_WINDOW", self.hide_window if self.settings.minimize_to_tray else self.exit_app)
+        minimize = self.settings_repo.get("minimize_to_tray", self.settings.minimize_to_tray)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window if minimize else self.exit_app)
 
     def _build_ui(self) -> None:
         header = tk.Frame(self.root, bg=BG, padx=24, pady=18)
@@ -166,6 +167,8 @@ class JarvisApp:
 
     def listen(self) -> None:
         self.set_status("listening")
+        if self.voice is None:
+            self.voice = VoiceInput(self.settings_repo.get("whisper_model", self.settings.whisper_model))
         threading.Thread(target=self._listen_worker, daemon=True, name="jarvis-microphone").start()
 
     def _listen_worker(self) -> None:
@@ -235,7 +238,7 @@ class JarvisApp:
         self.set_status("error", "#ff6b7a")
 
     def _start_tray(self) -> None:
-        if not self.settings.minimize_to_tray:
+        if not self.settings_repo.get("minimize_to_tray", self.settings.minimize_to_tray):
             return
         try:
             import pystray
