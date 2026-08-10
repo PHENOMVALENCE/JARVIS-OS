@@ -11,6 +11,7 @@ from typing import Callable
 
 from .actions import WindowsActions
 from .commands import ActionResult, Command, Risk
+from .storage import PermissionRepository
 
 
 ConfirmCallback = Callable[[Command], bool]
@@ -64,14 +65,27 @@ class AuditLog:
 class SecureExecutor:
     """Require user presence for sensitive actions and audit every attempt."""
 
-    def __init__(self, actions: WindowsActions, audit: AuditLog, confirm: ConfirmCallback | None = None):
+    def __init__(
+        self,
+        actions: WindowsActions,
+        audit: AuditLog,
+        confirm: ConfirmCallback | None = None,
+        permissions: PermissionRepository | None = None,
+    ):
         self.actions = actions
         self.audit = audit
         self.confirm = confirm
+        self.permissions = permissions
 
     def execute(self, command: Command) -> ActionResult:
-        needs_approval = command.risk in {Risk.MEDIUM, Risk.HIGH}
-        approved = not needs_approval
+        default_mode = "ask" if command.risk in {Risk.MEDIUM, Risk.HIGH} else "allow"
+        mode = self.permissions.get(command.action, default_mode) if self.permissions else default_mode
+        if mode == "deny":
+            result = ActionResult(False, f"Blocked {command.action} by your permission settings.")
+            self.audit.record(command, False, result)
+            return result
+        needs_approval = mode == "ask"
+        approved = mode == "allow"
         if needs_approval and self.confirm:
             approved = bool(self.confirm(command))
         if not approved:
