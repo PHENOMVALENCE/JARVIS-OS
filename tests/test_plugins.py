@@ -20,6 +20,7 @@ class PluginTests(unittest.TestCase):
 
     def test_discovers_notes_plugin(self):
         self.assertIn("notes", self.manager.plugins)
+        self.assertIn("productivity", self.manager.plugins)
         self.assertFalse(self.manager.plugins["notes"].error)
 
     def test_routes_and_executes_plugin_action(self):
@@ -32,6 +33,12 @@ class PluginTests(unittest.TestCase):
     def test_disabled_plugin_no_longer_routes(self):
         self.manager.set_enabled("notes", False)
         self.assertIsNone(self.manager.route("Remember buy milk"))
+
+    def test_routes_productivity_commands(self):
+        self.assertEqual(self.manager.route("Daily brief").action, "daily_brief")
+        send = self.manager.route("Send email to test@example.com subject Hello message Checking in")
+        self.assertEqual(send.action, "send_email")
+        self.assertEqual(send.risk.value, "high")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ etext==0.0.1
 google_api_python_client==2.157.0
 google_auth_oauthlib==1.2.1
 icrawler==0.6.9
+icalendar==6.3.1
 numpy==1.26.4
 mediapipe==0.10.14
 ollama==0.4.5

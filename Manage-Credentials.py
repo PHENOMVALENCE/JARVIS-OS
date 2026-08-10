@@ -8,7 +8,7 @@ from jarvis_os.credentials import CredentialStore
 SUPPORTED = (
     "github_token", "notion_token", "notion_database_id", "home_assistant_token",
     "home_assistant_url", "email_username", "email_password", "email_imap_server",
-    "calendar_ics_url",
+    "calendar_ics_url", "email_smtp_server",
 )
 
 

@@ -1,0 +1,15 @@
+{
+  "id": "productivity",
+  "name": "Productivity Integrations",
+  "version": "1.0.0",
+  "network": true,
+  "actions": {
+    "daily_brief": "low",
+    "calendar_agenda": "low",
+    "email_summary": "low",
+    "send_email": "high",
+    "github_summary": "low",
+    "notion_capture": "medium",
+    "home_status": "low"
+  }
+}
