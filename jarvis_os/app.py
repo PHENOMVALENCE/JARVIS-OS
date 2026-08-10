@@ -161,7 +161,10 @@ class JarvisApp:
             self.speech.put(text)
 
     def open_settings(self) -> None:
-        SettingsWindow(self.root, self.settings_repo, self.permissions_repo, self.audit, self.settings.project_root)
+        SettingsWindow(
+            self.root, self.settings_repo, self.permissions_repo, self.audit,
+            self.settings.project_root, self.plugins,
+        )
 
     def _speaker(self) -> None:
         engine = None

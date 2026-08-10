@@ -19,12 +19,13 @@ ACTIONS = (
 
 
 class SettingsWindow(tk.Toplevel):
-    def __init__(self, parent, settings: SettingsRepository, permissions: PermissionRepository, audit: AuditLog, project_root):
+    def __init__(self, parent, settings: SettingsRepository, permissions: PermissionRepository, audit: AuditLog, project_root, plugins=None):
         super().__init__(parent)
         self.settings_repo = settings
         self.permissions_repo = permissions
         self.audit = audit
         self.project_root = project_root
+        self.plugins = plugins
         self.title("J.A.R.V.I.S Settings")
         self.geometry("760x610")
         self.minsize(650, 500)
@@ -33,6 +34,7 @@ class SettingsWindow(tk.Toplevel):
         self.tabs.pack(fill="both", expand=True, padx=12, pady=12)
         self._build_general()
         self._build_permissions()
+        self._build_plugins()
         self._build_audit()
         ttk.Button(self, text="Save", command=self.save).pack(pady=(0, 12))
 
@@ -91,6 +93,22 @@ class SettingsWindow(tk.Toplevel):
             text.insert("end", f'{item["created_at"]}  {status:14} {item["action"]}\n  {item["message"]}\n\n')
         text.configure(state="disabled")
 
+    def _build_plugins(self):
+        frame = ttk.Frame(self.tabs, padding=18)
+        self.tabs.add(frame, text="Plugins")
+        self.plugin_vars = {}
+        if not self.plugins:
+            ttk.Label(frame, text="Plugin service is unavailable.").pack(anchor="w")
+            return
+        for item in self.plugins.status():
+            row = ttk.Frame(frame)
+            row.pack(fill="x", pady=6)
+            variable = tk.BooleanVar(value=item["enabled"])
+            ttk.Checkbutton(row, text=f'{item["name"]}  v{item["version"]}', variable=variable).pack(side="left")
+            status = item["error"] or ("Network access" if item["network"] else "Local only")
+            ttk.Label(row, text=status).pack(side="right")
+            self.plugin_vars[item["id"]] = variable
+
     def save(self):
         before_startup = bool(self.settings_repo.get("startup_enabled"))
         values = {
@@ -104,6 +122,11 @@ class SettingsWindow(tk.Toplevel):
             self.settings_repo.set(key, value)
         for action, variable in self.permission_vars.items():
             self.permissions_repo.set(action, variable.get())
+        if self.plugins:
+            current = {item["id"]: item["enabled"] for item in self.plugins.status()}
+            for plugin_id, variable in self.plugin_vars.items():
+                if current.get(plugin_id) != variable.get():
+                    self.plugins.set_enabled(plugin_id, variable.get())
         if before_startup != self.startup.get():
             script = "Install-Startup.ps1" if self.startup.get() else "Remove-Startup.ps1"
             completed = subprocess.run(
