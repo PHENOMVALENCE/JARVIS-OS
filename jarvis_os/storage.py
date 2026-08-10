@@ -105,6 +105,7 @@ class SettingsRepository:
         "quiet_hours_end": "07:00",
         "hello_for_high_risk": False,
         "security_timeout_minutes": 15,
+        "first_run_complete": False,
     }
 
     def __init__(self, database: Database):

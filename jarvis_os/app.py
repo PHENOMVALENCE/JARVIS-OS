@@ -21,6 +21,9 @@ from .workflow_ui import WorkflowWindow
 from .knowledge import KnowledgeIndex
 from .proactive import ProactiveScheduler
 from .user_presence import SecuritySession
+from .setup_ui import FirstRunWizard
+from .updates import UpdateChecker
+from . import __version__
 
 
 BG = "#070b12"
@@ -80,6 +83,9 @@ class JarvisApp:
         self._start_emergency_hotkey()
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
+        if not self.settings_repo.get("first_run_complete", False):
+            self.root.after(250, lambda: FirstRunWizard(self.root, self.settings_repo))
+        threading.Thread(target=self._check_updates, daemon=True, name="jarvis-updates").start()
 
     def _configure_window(self) -> None:
         self.root.title("J.A.R.V.I.S — Mark 6")
@@ -263,6 +269,17 @@ class JarvisApp:
         self.security_session.lock()
         self.add_message("J.A.R.V.I.S", "Emergency stop activated. Pending work was cleared and sensitive actions are locked.")
         self.set_status("stopped", "#ff6b7a")
+
+    def _check_updates(self) -> None:
+        try:
+            update = UpdateChecker().check(__version__)
+            if update:
+                self.proactive.notify(
+                    "J.A.R.V.I.S update available", f"Version {update['version']} is available on GitHub.",
+                    "normal", f"update:{update['version']}",
+                )
+        except Exception:
+            pass
 
     def hide_window(self) -> None:
         if self.tray_icon:
