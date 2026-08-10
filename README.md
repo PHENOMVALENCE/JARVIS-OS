@@ -1,6 +1,20 @@
-# J.A.R.V.I.S Mark 6
+# J.A.R.V.I.S Mark 7
 
-J.A.R.V.I.S Mark 6 is a Windows 11 desktop assistant with simultaneous keyboard and push-to-talk voice input, local or cloud conversation, permission-controlled PC actions, persistent memory, an audit trail, system-tray operation, and automatic startup at sign-in.
+Mark 7 extends the Windows assistant into a permission-managed automation and local-knowledge platform. It includes a settings center, manifest-based plugins, multi-step workflows, structured Windows UI Automation, privacy-aware screen analysis, semantic document search, productivity integrations, proactive notifications, Windows Credential Manager support, optional Windows Hello approval, an emergency stop, diagnostics, recovery tools, and a Windows release pipeline.
+
+New Mark 7 capabilities:
+
+- Configure behavior and per-action permissions from **SETTINGS**.
+- Build voice, manual, or daily routines from **WORKFLOWS**.
+- Press `Ctrl+Alt+J` at any time to cancel pending automation and lock sensitive actions.
+- Say `Remember buy milk`, `Daily brief`, `Read the Notepad window`, or `Search my documents for the launch budget`.
+- Store integration secrets with `python Manage-Credentials.py`; secrets never enter settings exports or SQLite.
+- Run `python Diagnose-Jarvis.py` to verify the installation.
+- Build a standalone executable with `.\Build-Release.ps1`.
+
+The first launch presents a privacy-focused setup wizard. Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
+
+J.A.R.V.I.S is a Windows 11 desktop assistant with simultaneous keyboard and push-to-talk voice input, local or cloud conversation, permission-controlled PC actions, persistent memory, an audit trail, system-tray operation, and automatic startup at sign-in.
 
 ## Quick start
 
@@ -28,7 +42,7 @@ Private credentials belong in `.env`, which is ignored by Git. Copy `.env.exampl
 
 ## Legacy Mark 5 documentation
 
-The original Mark 5 runtime remains in the repository for reference. `Start-Jarvis.ps1` now launches Mark 6.
+The original Mark 5 runtime remains in the repository for reference. `Start-Jarvis.ps1` launches `Mark_7.py`; `Mark_6.py` remains available as a compatibility entry point.
 
 # Original system overview
 

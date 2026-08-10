@@ -87,22 +87,41 @@ class AssistantReply:
 
 
 class AssistantController:
-    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider):
+    def __init__(self, executor: SecureExecutor, store: ConversationStore, provider: ChatProvider, plugins=None, workflows=None, settings_repo=None):
         self.executor = executor
         self.store = store
         self.provider = provider
         self.router = CommandRouter()
+        self.plugins = plugins
+        self.workflows = workflows
+        self.settings_repo = settings_repo
 
     def process(self, text: str) -> AssistantReply:
-        command = self.router.route(text)
+        workflow = self.workflows.match_voice(text) if self.workflows else None
+        if workflow:
+            result = self.workflows.run(workflow)
+            return AssistantReply(result.message)
+        command = self.plugins.route(text) if self.plugins else None
+        command = command or self.router.route(text)
         if command.action != "chat":
             result = self.executor.execute(command)
             details = result.data.get("matches") if result.data else None
+            if command.action == "semantic_search" and result.success and details:
+                context = "\n\n".join(details)
+                answer = self.provider.reply([
+                    {"role": "system", "content": "Answer only from the supplied local document passages. Cite each source path and page used. Say when the evidence is insufficient."},
+                    {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
+                ])
+                return AssistantReply(answer, details)
             return AssistantReply(result.message, details)
-        self.store.append("user", text)
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *self.store.recent()]
+        memory_enabled = not self.settings_repo or self.settings_repo.get("conversation_memory", True)
+        if memory_enabled:
+            self.store.append("user", text)
+        history = self.store.recent() if memory_enabled else [{"role": "user", "content": text}]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history]
         reply = self.provider.reply(messages)
-        self.store.append("assistant", reply)
+        if memory_enabled:
+            self.store.append("assistant", reply)
         return AssistantReply(reply)
 
 
@@ -131,9 +150,10 @@ class VoiceInput:
         return result.strip()
 
 
-def make_provider(settings: Settings) -> ChatProvider:
+def make_provider(settings: Settings, settings_repo=None) -> ChatProvider:
     if settings.llm_provider == "openai":
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is required when JARVIS_LLM_PROVIDER=openai.")
         return OpenAIProvider(settings.openai_api_key)
-    return OllamaProvider(settings.ollama_model)
+    model = settings_repo.get("ollama_model", settings.ollama_model) if settings_repo else settings.ollama_model
+    return OllamaProvider(model)

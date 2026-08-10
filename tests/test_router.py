@@ -36,6 +36,22 @@ class CommandRouterTests(unittest.TestCase):
         self.assertEqual(self.router.route("Start work mode").action, "work_mode")
         self.assertEqual(self.router.route("Type hello world").risk, Risk.MEDIUM)
 
+    def test_routes_structured_ui_automation(self):
+        self.assertEqual(self.router.route("Read the Notepad window").action, "inspect_ui")
+        click = self.router.route("Click Save in Notepad")
+        self.assertEqual(click.action, "invoke_ui")
+        self.assertEqual(click.risk, Risk.MEDIUM)
+        self.assertEqual(self.router.route("Select second result in Spotify").action, "select_ui")
+
+    def test_screen_capture_requires_confirmation(self):
+        self.assertEqual(self.router.route("Take a screenshot").risk, Risk.MEDIUM)
+        self.assertEqual(self.router.route("What is on my screen").action, "analyze_screen")
+
+    def test_package_management_is_high_risk(self):
+        command = self.router.route("Install package VideoLAN.VLC")
+        self.assertEqual(command.action, "install_package")
+        self.assertEqual(command.risk, Risk.HIGH)
+
 
 if __name__ == "__main__":
     unittest.main()

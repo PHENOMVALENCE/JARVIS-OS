@@ -1,0 +1,10 @@
+{
+  "id": "notes",
+  "name": "Local Notes",
+  "version": "1.0.0",
+  "network": false,
+  "actions": {
+    "save_note": "low",
+    "list_notes": "low"
+  }
+}

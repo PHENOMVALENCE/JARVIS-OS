@@ -12,7 +12,19 @@ from .actions import WindowsActions
 from .assistant import AssistantController, ConversationStore, VoiceInput, make_provider
 from .commands import Command
 from .security import AuditLog, SecureExecutor
+from .plugins import PluginManager
 from .settings import Settings
+from .settings_ui import SettingsWindow
+from .storage import Database, PermissionRepository, SettingsRepository
+from .workflows import WorkflowEngine, WorkflowRepository
+from .workflow_ui import WorkflowWindow
+from .knowledge import KnowledgeIndex
+from .proactive import ProactiveScheduler
+from .user_presence import SecuritySession
+from .setup_ui import FirstRunWizard
+from .updates import UpdateChecker
+from . import __version__
+from .wake_word import WakeWordListener
 
 
 BG = "#070b12"
@@ -30,11 +42,37 @@ class JarvisApp:
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
         self.work: queue.Queue[str | None] = queue.Queue()
         self.speech: queue.Queue[str | None] = queue.Queue()
-        self.voice = VoiceInput(self.settings.whisper_model)
+        self.voice = None
+        database = Database(self.settings.data_dir / "jarvis.db")
+        self.settings_repo = SettingsRepository(database)
+        self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
-        executor = SecureExecutor(WindowsActions(), audit, self.confirm_action)
+        self.audit = audit
+        self.security_session = SecuritySession(
+            timeout_minutes=int(self.settings_repo.get("security_timeout_minutes", 15)),
+            always_verify=bool(self.settings_repo.get("hello_for_high_risk", False)),
+        )
+        self.knowledge = KnowledgeIndex(database, self.settings_repo)
+        self.plugins = PluginManager(
+            self.settings.project_root / "plugins", database,
+            WindowsActions(
+                data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
+                openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
+            ),
+            self.settings.data_dir,
+        )
+        executor = SecureExecutor(
+            self.plugins, audit, self.confirm_action, self.permissions_repo,
+            self.security_session.authorize,
+        )
+        self.workflows = WorkflowEngine(
+            WorkflowRepository(database), executor, database, self.settings_repo
+        )
         store = ConversationStore(self.settings.data_dir / "conversation.db")
-        self.controller = AssistantController(executor, store, make_provider(self.settings))
+        self.controller = AssistantController(
+            executor, store, make_provider(self.settings, self.settings_repo), self.plugins, self.workflows, self.settings_repo
+        )
+        self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
         self.tray_icon = None
         self._closing = False
 
@@ -43,14 +81,21 @@ class JarvisApp:
         threading.Thread(target=self._worker, daemon=True, name="jarvis-actions").start()
         threading.Thread(target=self._speaker, daemon=True, name="jarvis-speech").start()
         self._start_tray()
+        self._start_emergency_hotkey()
+        self._start_wake_word()
+        self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
+        if not self.settings_repo.get("first_run_complete", False):
+            self.root.after(250, lambda: FirstRunWizard(self.root, self.settings_repo))
+        threading.Thread(target=self._check_updates, daemon=True, name="jarvis-updates").start()
 
     def _configure_window(self) -> None:
         self.root.title("J.A.R.V.I.S — Mark 6")
         self.root.geometry("980x700")
         self.root.minsize(720, 520)
         self.root.configure(bg=BG)
-        self.root.protocol("WM_DELETE_WINDOW", self.hide_window if self.settings.minimize_to_tray else self.exit_app)
+        minimize = self.settings_repo.get("minimize_to_tray", self.settings.minimize_to_tray)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window if minimize else self.exit_app)
 
     def _build_ui(self) -> None:
         header = tk.Frame(self.root, bg=BG, padx=24, pady=18)
@@ -58,6 +103,14 @@ class JarvisApp:
         tk.Label(header, text="J.A.R.V.I.S", fg=ACCENT, bg=BG, font=("Segoe UI Semibold", 22)).pack(side="left")
         self.status = tk.Label(header, text="● READY", fg=SUCCESS, bg=BG, font=("Segoe UI Semibold", 10))
         self.status.pack(side="right")
+        tk.Button(
+            header, text="SETTINGS", command=self.open_settings, bg=BG, fg=MUTED,
+            activebackground=PANEL, activeforeground=TEXT, relief="flat", cursor="hand2",
+        ).pack(side="right", padx=(0, 18))
+        tk.Button(
+            header, text="WORKFLOWS", command=self.open_workflows, bg=BG, fg=MUTED,
+            activebackground=PANEL, activeforeground=TEXT, relief="flat", cursor="hand2",
+        ).pack(side="right", padx=(0, 8))
 
         self.transcript = scrolledtext.ScrolledText(
             self.root, wrap="word", bg=PANEL, fg=TEXT, insertbackground=TEXT,
@@ -111,10 +164,13 @@ class JarvisApp:
             self.add_message("YOU", text)
             self.set_status("working")
             self.work.put(text)
+            self.security_session.touch()
         return "break"
 
     def listen(self) -> None:
         self.set_status("listening")
+        if self.voice is None:
+            self.voice = VoiceInput(self.settings_repo.get("whisper_model", self.settings.whisper_model))
         threading.Thread(target=self._listen_worker, daemon=True, name="jarvis-microphone").start()
 
     def _listen_worker(self) -> None:
@@ -131,6 +187,7 @@ class JarvisApp:
         self.add_message("YOU", text)
         self.set_status("working")
         self.work.put(text)
+        self.security_session.touch()
 
     def _worker(self) -> None:
         while (text := self.work.get()) is not None:
@@ -143,8 +200,17 @@ class JarvisApp:
     def _deliver(self, text: str, details: list[str] | None) -> None:
         self.add_message("J.A.R.V.I.S", text, details)
         self.set_status("ready", SUCCESS)
-        if self.settings.speak_responses:
+        if self.settings_repo.get("speak_responses", self.settings.speak_responses):
             self.speech.put(text)
+
+    def open_settings(self) -> None:
+        SettingsWindow(
+            self.root, self.settings_repo, self.permissions_repo, self.audit,
+            self.settings.project_root, self.plugins, self.controller.store,
+        )
+
+    def open_workflows(self) -> None:
+        WorkflowWindow(self.root, self.workflows)
 
     def _speaker(self) -> None:
         engine = None
@@ -174,7 +240,7 @@ class JarvisApp:
         self.set_status("error", "#ff6b7a")
 
     def _start_tray(self) -> None:
-        if not self.settings.minimize_to_tray:
+        if not self.settings_repo.get("minimize_to_tray", self.settings.minimize_to_tray):
             return
         try:
             import pystray
@@ -189,6 +255,44 @@ class JarvisApp:
             threading.Thread(target=self.tray_icon.run, daemon=True, name="jarvis-tray").start()
         except Exception:
             self.tray_icon = None
+
+    def _start_emergency_hotkey(self) -> None:
+        try:
+            from pynput.keyboard import GlobalHotKeys
+            self.emergency_hotkey = GlobalHotKeys({"<ctrl>+<alt>+j": lambda: self.root.after(0, self.emergency_stop)})
+            self.emergency_hotkey.start()
+        except Exception:
+            self.emergency_hotkey = None
+
+    def _start_wake_word(self) -> None:
+        import os
+        self.wake_word = WakeWordListener(
+            os.getenv("PORCUPINE_API_KEY", ""), lambda: self.root.after(0, self.listen)
+        )
+        if self.settings_repo.get("wake_word_enabled", False):
+            self.wake_word.start()
+
+    def emergency_stop(self) -> None:
+        self.workflows.cancel()
+        while True:
+            try:
+                self.work.get_nowait()
+            except queue.Empty:
+                break
+        self.security_session.lock()
+        self.add_message("J.A.R.V.I.S", "Emergency stop activated. Pending work was cleared and sensitive actions are locked.")
+        self.set_status("stopped", "#ff6b7a")
+
+    def _check_updates(self) -> None:
+        try:
+            update = UpdateChecker().check(__version__)
+            if update:
+                self.proactive.notify(
+                    "J.A.R.V.I.S update available", f"Version {update['version']} is available on GitHub.",
+                    "normal", f"update:{update['version']}",
+                )
+        except Exception:
+            pass
 
     def hide_window(self) -> None:
         if self.tray_icon:
@@ -209,6 +313,10 @@ class JarvisApp:
         self.speech.put(None)
         if self.tray_icon:
             self.tray_icon.stop()
+        if self.emergency_hotkey:
+            self.emergency_hotkey.stop()
+        self.wake_word.stop()
+        self.proactive.stop()
         self.root.destroy()
 
 

@@ -8,3 +8,7 @@ caches and calls/token.json
 data/
 *.db-shm
 *.db-wal
+dist/
+build/
+installer-output/
+*.spec.bak

@@ -1,6 +1,36 @@
 # J.A.R.V.I.S command guide
 
+## Mark 7 knowledge and productivity
+
+- `Remember submit the application Friday`
+- `List notes`
+- `Index my documents`
+- `Search my documents for the launch budget`
+- `Daily brief`
+- `Show my calendar`
+- `Summarize my email`
+- `GitHub summary`
+- `Capture project decision to Notion`
+- `Home Assistant status`
+- `Send email to name@example.com subject Hello message Checking in` — requires high-risk confirmation
+- `Install package VideoLAN.VLC` — exact Winget ID, confirmation, and optional Windows Hello
+- `Update package VideoLAN.VLC` — exact Winget ID, confirmation, and optional Windows Hello
+
+Indexed folders are opt-in under **Settings → General**. Search results include source paths and PDF/slide/sheet page references. Optional integration secrets are stored with `python Manage-Credentials.py`.
+
+## Structured application automation
+
+- `Read the Notepad window`
+- `Click Save in Notepad` — asks first
+- `Select second result in Spotify` — asks first
+- `Enter hello in Name field in Notepad` — asks first
+- `What is on my screen` — asks before capture
+
+Structured control uses Windows accessibility metadata instead of fixed cursor coordinates. Screen analysis is blocked by Privacy Mode.
+
 Commands can be typed or spoken. Wording may vary slightly from these examples.
+
+Optional wake-word listening can be enabled under **Settings → General** after configuring `PORCUPINE_API_KEY`. Saying “Jarvis” then opens the normal push-to-talk listening window.
 
 ## Applications, folders, and files
 
@@ -43,6 +73,8 @@ JARVIS_WORK_APPS=terminal,spotify
 ```
 
 Then say `Start work mode` to open them together.
+
+Mark 7 also provides the **WORKFLOWS** editor for multi-step routines. Workflows support action steps, delays, setting conditions, voice phrases, daily times, cancellation, and failure policies. Each sensitive step retains its normal permission check.
 
 ## Conversation
 

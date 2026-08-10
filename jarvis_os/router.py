@@ -31,6 +31,13 @@ class CommandRouter:
         if match:
             return Command("web_search", {"query": match.group(1)}, raw_text=raw)
 
+        if normalized in {"index my documents", "update document index", "index documents"}:
+            return Command("index_documents", risk=Risk.MEDIUM, raw_text=raw)
+
+        match = re.match(r"(?:search|find) (?:my )?(?:documents|knowledge|files) for\s+(.+)", normalized)
+        if match:
+            return Command("semantic_search", {"query": match.group(1)}, raw_text=raw)
+
         match = re.match(r"(?:open|show)\s+(?:my\s+)?(.+?)\s+folder$", normalized)
         if match:
             return Command("open_folder", {"path": self._folder(match.group(1))}, raw_text=raw)
@@ -49,6 +56,14 @@ class CommandRouter:
         match = re.match(r"(?:open|launch|start)\s+(.+)", normalized)
         if match:
             return Command("open_app", {"name": match.group(1)}, raw_text=raw)
+
+        match = re.match(r"install package\s+([a-z0-9._-]+)", normalized)
+        if match:
+            return Command("install_package", {"package_id": match.group(1)}, Risk.HIGH, raw)
+
+        match = re.match(r"(?:upgrade|update) package\s+([a-z0-9._-]+)", normalized)
+        if match:
+            return Command("upgrade_package", {"package_id": match.group(1)}, Risk.HIGH, raw)
 
         match = re.match(r"(?:play|listen to)\s+(.+?)(?:\s+on spotify)?$", normalized)
         if match and match.group(1) not in {"music", "spotify"}:
@@ -72,7 +87,31 @@ class CommandRouter:
             return Command("change_volume", {"delta": -10}, raw_text=raw)
 
         if normalized in {"take a screenshot", "take screenshot", "capture the screen", "screenshot"}:
-            return Command("screenshot", raw_text=raw)
+            return Command("screenshot", risk=Risk.MEDIUM, raw_text=raw)
+
+        match = re.match(r"(?:what(?:'s| is) on (?:my |the )?screen|analyze (?:my |the )?screen|describe (?:my |the )?screen)(?:\s+(.+))?", normalized)
+        if match:
+            prompt = match.group(1) or "Describe the visible screen and identify important text and controls."
+            return Command("analyze_screen", {"prompt": prompt}, Risk.MEDIUM, raw)
+
+        match = re.match(r"(?:read|inspect)\s+(?:the\s+)?(.+?)\s+window$", normalized)
+        if match:
+            return Command("inspect_ui", {"window": match.group(1)}, raw_text=raw)
+
+        match = re.match(r"(?:click|press|activate)\s+(.+?)\s+in\s+(.+)", normalized)
+        if match:
+            return Command("invoke_ui", {"control": match.group(1), "window": match.group(2)}, Risk.MEDIUM, raw)
+
+        match = re.match(r"(?:enter|set)\s+(.+?)\s+in\s+(.+?)\s+(?:field|box)\s+in\s+(.+)", normalized)
+        if match:
+            return Command(
+                "set_ui_text", {"text": match.group(1), "control": match.group(2), "window": match.group(3)},
+                Risk.MEDIUM, raw,
+            )
+
+        match = re.match(r"select\s+(.+?)\s+in\s+(.+)", normalized)
+        if match:
+            return Command("select_ui", {"item": match.group(1), "window": match.group(2)}, Risk.MEDIUM, raw)
 
         if normalized in {"read clipboard", "what is on my clipboard", "show clipboard"}:
             return Command("read_clipboard", raw_text=raw)

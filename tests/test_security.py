@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 from jarvis_os.commands import ActionResult, Command, Risk
 from jarvis_os.security import AuditLog, SecureExecutor
+from jarvis_os.storage import Database, PermissionRepository
 
 
 class SecureExecutorTests(unittest.TestCase):
@@ -35,6 +36,28 @@ class SecureExecutorTests(unittest.TestCase):
         result = SecureExecutor(self.actions, self.audit, lambda _: True).execute(command)
         self.assertTrue(result.success)
         self.assertEqual(self.audit.recent()[0]["success"], 1)
+
+    def test_permission_repository_can_deny_low_risk_action(self):
+        permissions = PermissionRepository(Database(Path(self.temp.name) / "settings.db"))
+        permissions.set("open_app", "deny")
+        result = SecureExecutor(self.actions, self.audit, permissions=permissions).execute(Command("open_app"))
+        self.assertFalse(result.success)
+        self.actions.execute.assert_not_called()
+
+    def test_permission_repository_can_allow_sensitive_action(self):
+        permissions = PermissionRepository(Database(Path(self.temp.name) / "settings.db"))
+        permissions.set("close_app", "allow")
+        result = SecureExecutor(self.actions, self.audit, permissions=permissions).execute(
+            Command("close_app", {"name": "spotify"}, Risk.MEDIUM)
+        )
+        self.assertTrue(result.success)
+
+    def test_audit_chain_detects_tampering(self):
+        SecureExecutor(self.actions, self.audit).execute(Command("open_app"))
+        self.assertTrue(self.audit.verify())
+        with self.audit._connect() as database:
+            database.execute("UPDATE actions SET message='changed' WHERE id=1")
+        self.assertFalse(self.audit.verify())
 
 
 if __name__ == "__main__":

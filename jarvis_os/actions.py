@@ -45,8 +45,12 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None):
         self.home = (home or Path.home()).resolve()
+        self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
+        self.settings_repo = settings_repo
+        self.openai_api_key = openai_api_key
+        self.knowledge = knowledge
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -67,6 +71,15 @@ class WindowsActions:
             "type_text": self.type_text,
             "notification": self.notification,
             "work_mode": self.work_mode,
+            "inspect_ui": self.inspect_ui,
+            "invoke_ui": self.invoke_ui,
+            "set_ui_text": self.set_ui_text,
+            "select_ui": self.select_ui,
+            "analyze_screen": self.analyze_screen,
+            "index_documents": self.index_documents,
+            "semantic_search": self.semantic_search,
+            "install_package": self.install_package,
+            "upgrade_package": self.upgrade_package,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -244,12 +257,42 @@ class WindowsActions:
         return ActionResult(True, f"Set {title} window to {operation}.")
 
     def screenshot(self, _args: dict) -> ActionResult:
-        from PIL import ImageGrab
-        folder = Path(__file__).resolve().parent.parent / "data" / "screenshots"
-        folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"screenshot-{datetime.now():%Y%m%d-%H%M%S}.png"
-        ImageGrab.grab(all_screens=True).save(path)
-        return ActionResult(True, f"Screenshot saved as {path.name}.", {"matches": [str(path)]})
+        from .screen import ScreenService
+        return ScreenService(self.data_dir, self.settings_repo, self.openai_api_key).capture()
+
+    def analyze_screen(self, args: dict) -> ActionResult:
+        from .screen import ScreenService
+        return ScreenService(self.data_dir, self.settings_repo, self.openai_api_key).capture(
+            analyze=True, prompt=str(args.get("prompt", "Describe the visible screen and any important text or controls."))
+        )
+
+    def index_documents(self, _args: dict) -> ActionResult:
+        return self.knowledge.index_configured() if self.knowledge else ActionResult(False, "Knowledge index unavailable.")
+
+    def semantic_search(self, args: dict) -> ActionResult:
+        return self.knowledge.search(str(args["query"])) if self.knowledge else ActionResult(False, "Knowledge index unavailable.")
+
+    @staticmethod
+    def install_package(args: dict) -> ActionResult:
+        package_id = str(args["package_id"]).strip()
+        if not package_id or not all(character.isalnum() or character in ".-_" for character in package_id):
+            return ActionResult(False, "Package IDs may contain only letters, numbers, dots, hyphens, and underscores.")
+        completed = subprocess.run(
+            ["winget", "install", "--id", package_id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements"],
+            capture_output=True, text=True, timeout=900,
+        )
+        return ActionResult(completed.returncode == 0, completed.stdout.strip()[-1000:] or completed.stderr.strip()[-1000:])
+
+    @staticmethod
+    def upgrade_package(args: dict) -> ActionResult:
+        package_id = str(args["package_id"]).strip()
+        if not package_id or not all(character.isalnum() or character in ".-_" for character in package_id):
+            return ActionResult(False, "Invalid package ID.")
+        completed = subprocess.run(
+            ["winget", "upgrade", "--id", package_id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements"],
+            capture_output=True, text=True, timeout=900,
+        )
+        return ActionResult(completed.returncode == 0, completed.stdout.strip()[-1000:] or completed.stderr.strip()[-1000:])
 
     @staticmethod
     def read_clipboard(_args: dict) -> ActionResult:
@@ -276,10 +319,29 @@ class WindowsActions:
         return ActionResult(True, "Notification displayed.")
 
     def work_mode(self, _args: dict) -> ActionResult:
-        configured = os.getenv("JARVIS_WORK_APPS", "").strip()
+        configured = self.settings_repo.get("work_apps", []) if self.settings_repo else []
+        if not configured:
+            configured = [item.strip() for item in os.getenv("JARVIS_WORK_APPS", "").split(",") if item.strip()]
         if not configured:
             return ActionResult(False, "Work mode is not configured. Set JARVIS_WORK_APPS in .env.")
         messages = []
-        for app in (item.strip() for item in configured.split(",") if item.strip()):
+        for app in configured:
             messages.append(self.open_app({"name": app}).message)
         return ActionResult(True, "Work mode started. " + " ".join(messages))
+
+    @staticmethod
+    def _automation():
+        from .ui_automation import UIAutomationService
+        return UIAutomationService()
+
+    def inspect_ui(self, args: dict) -> ActionResult:
+        return self._automation().read(str(args["window"]))
+
+    def invoke_ui(self, args: dict) -> ActionResult:
+        return self._automation().invoke(str(args["window"]), str(args["control"]))
+
+    def set_ui_text(self, args: dict) -> ActionResult:
+        return self._automation().set_text(str(args["window"]), str(args["control"]), str(args["text"]))
+
+    def select_ui(self, args: dict) -> ActionResult:
+        return self._automation().select(str(args["window"]), str(args["item"]))
