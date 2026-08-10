@@ -69,8 +69,8 @@ class JarvisApp:
         self.transcript.tag_configure("body", foreground=TEXT, spacing3=14)
         self.transcript.tag_configure("detail", foreground=MUTED, lmargin1=18, lmargin2=18)
 
-        input_panel = tk.Frame(self.root, bg=BG, padx=24, pady=(0, 22))
-        input_panel.pack(fill="x")
+        input_panel = tk.Frame(self.root, bg=BG, padx=24, pady=0)
+        input_panel.pack(fill="x", pady=(0, 22))
         self.entry = tk.Entry(
             input_panel, bg=PANEL, fg=TEXT, insertbackground=TEXT, relief="flat",
             font=("Segoe UI", 12), bd=0,
