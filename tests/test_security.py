@@ -52,6 +52,13 @@ class SecureExecutorTests(unittest.TestCase):
         )
         self.assertTrue(result.success)
 
+    def test_audit_chain_detects_tampering(self):
+        SecureExecutor(self.actions, self.audit).execute(Command("open_app"))
+        self.assertTrue(self.audit.verify())
+        with self.audit._connect() as database:
+            database.execute("UPDATE actions SET message='changed' WHERE id=1")
+        self.assertFalse(self.audit.verify())
+
 
 if __name__ == "__main__":
     unittest.main()

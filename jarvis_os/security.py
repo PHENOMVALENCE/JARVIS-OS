@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import hashlib
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,23 @@ class AuditLog:
                 message TEXT NOT NULL
                 )"""
             )
+            columns = {row[1] for row in database.execute("PRAGMA table_info(actions)")}
+            if "previous_hash" not in columns:
+                database.execute("ALTER TABLE actions ADD COLUMN previous_hash TEXT NOT NULL DEFAULT ''")
+            if "record_hash" not in columns:
+                database.execute("ALTER TABLE actions ADD COLUMN record_hash TEXT NOT NULL DEFAULT ''")
+            previous_hash = ""
+            for row in database.execute(
+                "SELECT id,created_at,action,arguments,risk,approved,success,message,record_hash FROM actions ORDER BY id"
+            ).fetchall():
+                payload = "|".join((row[1], row[2], row[3], row[4], str(row[5]), str(row[6]), row[7], previous_hash))
+                record_hash = row[8] or hashlib.sha256(payload.encode("utf-8")).hexdigest()
+                if not row[8]:
+                    database.execute(
+                        "UPDATE actions SET previous_hash=?,record_hash=? WHERE id=?",
+                        (previous_hash, record_hash, row[0]),
+                    )
+                previous_hash = record_hash
 
     @contextmanager
     def _connect(self):
@@ -46,12 +64,17 @@ class AuditLog:
 
     def record(self, command: Command, approved: bool, result: ActionResult) -> None:
         with self._connect() as database:
+            row = database.execute("SELECT record_hash FROM actions ORDER BY id DESC LIMIT 1").fetchone()
+            previous_hash = row[0] if row else ""
+            created_at = datetime.now(timezone.utc).isoformat()
+            arguments = json.dumps(command.arguments, ensure_ascii=False, sort_keys=True)
+            payload = "|".join((created_at, command.action, arguments, command.risk.value, str(int(approved)), str(int(result.success)), result.message, previous_hash))
+            record_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
             database.execute(
-                "INSERT INTO actions(created_at, action, arguments, risk, approved, success, message) VALUES(?,?,?,?,?,?,?)",
+                "INSERT INTO actions(created_at, action, arguments, risk, approved, success, message, previous_hash, record_hash) VALUES(?,?,?,?,?,?,?,?,?)",
                 (
-                    datetime.now(timezone.utc).isoformat(), command.action,
-                    json.dumps(command.arguments, ensure_ascii=False), command.risk.value,
-                    int(approved), int(result.success), result.message,
+                    created_at, command.action, arguments, command.risk.value,
+                    int(approved), int(result.success), result.message, previous_hash, record_hash,
                 ),
             )
 
@@ -60,6 +83,22 @@ class AuditLog:
             database.row_factory = sqlite3.Row
             rows = database.execute("SELECT * FROM actions ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [dict(row) for row in rows]
+
+    def verify(self) -> bool:
+        previous_hash = ""
+        with self._connect() as database:
+            database.row_factory = sqlite3.Row
+            rows = database.execute("SELECT * FROM actions ORDER BY id").fetchall()
+        for row in rows:
+            payload = "|".join((
+                row["created_at"], row["action"], row["arguments"], row["risk"],
+                str(row["approved"]), str(row["success"]), row["message"], previous_hash,
+            ))
+            expected = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            if row["previous_hash"] != previous_hash or row["record_hash"] != expected:
+                return False
+            previous_hash = row["record_hash"]
+        return True
 
 
 class SecureExecutor:
