@@ -14,3 +14,4 @@ if (-not (Test-Path ".env")) {
 }
 
 Write-Host "Setup complete. Start with: .\Start-Jarvis.ps1"
+Write-Host "Optional startup at sign-in: .\Install-Startup.ps1"
