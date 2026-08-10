@@ -28,6 +28,8 @@ Structured control uses Windows accessibility metadata instead of fixed cursor c
 
 Commands can be typed or spoken. Wording may vary slightly from these examples.
 
+Optional wake-word listening can be enabled under **Settings → General** after configuring `PORCUPINE_API_KEY`. Saying “Jarvis” then opens the normal push-to-talk listening window.
+
 ## Applications, folders, and files
 
 - `Open Spotify`

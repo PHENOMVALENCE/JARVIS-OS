@@ -106,6 +106,7 @@ class SettingsRepository:
         "hello_for_high_risk": False,
         "security_timeout_minutes": 15,
         "first_run_complete": False,
+        "wake_word_enabled": False,
     }
 
     def __init__(self, database: Database):

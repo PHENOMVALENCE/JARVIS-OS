@@ -53,12 +53,14 @@ class SettingsWindow(tk.Toplevel):
         self.privacy = tk.BooleanVar(value=values["privacy_mode"])
         self.proactive = tk.BooleanVar(value=values.get("proactive_enabled", True))
         self.hello = tk.BooleanVar(value=values.get("hello_for_high_risk", False))
+        self.wake_word = tk.BooleanVar(value=values.get("wake_word_enabled", False))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
             ("Privacy mode (blocks capture and cloud features)", self.privacy),
             ("Proactive reminders and system health alerts", self.proactive),
             ("Require Windows Hello for high-risk actions", self.hello),
+            ("Listen for the 'Jarvis' wake word (requires PORCUPINE_API_KEY)", self.wake_word),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -164,6 +166,7 @@ class SettingsWindow(tk.Toplevel):
             "proactive_enabled": self.proactive.get(),
             "quiet_hours_start": self.quiet_start.get().strip(), "quiet_hours_end": self.quiet_end.get().strip(),
             "hello_for_high_risk": self.hello.get(), "security_timeout_minutes": int(self.security_timeout.get()),
+            "wake_word_enabled": self.wake_word.get(),
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)

@@ -24,6 +24,7 @@ from .user_presence import SecuritySession
 from .setup_ui import FirstRunWizard
 from .updates import UpdateChecker
 from . import __version__
+from .wake_word import WakeWordListener
 
 
 BG = "#070b12"
@@ -81,6 +82,7 @@ class JarvisApp:
         threading.Thread(target=self._speaker, daemon=True, name="jarvis-speech").start()
         self._start_tray()
         self._start_emergency_hotkey()
+        self._start_wake_word()
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
         if not self.settings_repo.get("first_run_complete", False):
@@ -262,6 +264,14 @@ class JarvisApp:
         except Exception:
             self.emergency_hotkey = None
 
+    def _start_wake_word(self) -> None:
+        import os
+        self.wake_word = WakeWordListener(
+            os.getenv("PORCUPINE_API_KEY", ""), lambda: self.root.after(0, self.listen)
+        )
+        if self.settings_repo.get("wake_word_enabled", False):
+            self.wake_word.start()
+
     def emergency_stop(self) -> None:
         self.workflows.cancel()
         while True:
@@ -305,6 +315,7 @@ class JarvisApp:
             self.tray_icon.stop()
         if self.emergency_hotkey:
             self.emergency_hotkey.stop()
+        self.wake_word.stop()
         self.proactive.stop()
         self.root.destroy()
 
