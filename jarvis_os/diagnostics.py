@@ -22,7 +22,7 @@ def run_diagnostics(project_root: Path) -> list[Diagnostic]:
     results = [
         Diagnostic("Windows", platform.system() == "Windows", platform.platform()),
         Diagnostic("Python", sys.version_info[:2] == (3, 11), platform.python_version()),
-        Diagnostic("Project files", (project_root / "Mark_6.py").is_file(), str(project_root)),
+        Diagnostic("Project files", (project_root / "Mark_7.py").is_file(), str(project_root)),
         Diagnostic("Ollama executable", shutil.which("ollama") is not None, shutil.which("ollama") or "not found"),
     ]
     for module in ("tkinter", "ollama", "whisper_mic", "pywinauto", "winotify", "winrt.windows.security.credentials.ui"):

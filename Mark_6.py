@@ -1,11 +1,7 @@
-"""J.A.R.V.I.S Mark 6 desktop entry point."""
+"""Compatibility entry point; new installations launch Mark 7."""
 
-import ctypes
-
-from jarvis_os.app import run
+from Mark_7 import main
 
 
 if __name__ == "__main__":
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "JARVIS_MARK_6_SINGLE_INSTANCE")
-    if ctypes.windll.kernel32.GetLastError() != 183:
-        run()
+    main()

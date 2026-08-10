@@ -6,7 +6,7 @@ for package in ("winrt", "pywinauto", "whisper_mic", "ollama", "winotify", "pyst
     hiddenimports += collect_submodules(package)
 
 analysis = Analysis(
-    ["Mark_6.py"],
+    ["Mark_7.py"],
     pathex=[],
     binaries=[],
     datas=[("GUI_images", "GUI_images"), ("sounds", "sounds"), ("plugins", "plugins"), (".env.example", ".")],
