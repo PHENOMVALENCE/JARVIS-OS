@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -33,8 +34,14 @@ class AuditLog:
                 )"""
             )
 
+    @contextmanager
     def _connect(self):
-        return sqlite3.connect(self.path)
+        database = sqlite3.connect(self.path)
+        try:
+            yield database
+            database.commit()
+        finally:
+            database.close()
 
     def record(self, command: Command, approved: bool, result: ActionResult) -> None:
         with self._connect() as database:
