@@ -2,6 +2,10 @@
 
 Mark 7 extends the Windows assistant into a permission-managed automation and local-knowledge platform. It includes a settings center, manifest-based plugins, multi-step workflows, structured Windows UI Automation, privacy-aware screen analysis, semantic document search, productivity integrations, proactive notifications, Windows Credential Manager support, optional Windows Hello approval, an emergency stop, diagnostics, recovery tools, and a Windows release pipeline.
 
+## Documentation
+
+The complete Mark 7 handbook starts at [`docs/README.md`](docs/README.md). It includes installation, user operation, configuration, workflows, integrations, plugin development, architecture, security, backup/release operations, troubleshooting, and testing. The concise command catalog remains in [`COMMANDS.md`](COMMANDS.md).
+
 New Mark 7 capabilities:
 
 - Configure behavior and per-action permissions from **SETTINGS**.
