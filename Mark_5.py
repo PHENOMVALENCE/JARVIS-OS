@@ -94,7 +94,7 @@ def send_to_llama(message):
     conversation_history.append({'role': 'user', 'content': message})
 
         # Include the system message and conversation history in the request
-    response = ollama.chat(model='gemma2', messages=[*conversation_history])
+    response = ollama.chat(model=constants.ollama_model, messages=[*conversation_history])
 
         # Add the AI response to the conversation history
     conversation_history.append({'role': 'assistant', 'content': response['message']['content']})
@@ -167,14 +167,11 @@ def Listen(loop: bool, dictate: bool):
       result = result.lower()
       mixer.music.play()
       cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.background_png))
-      while "timeout: no speech detected within the specified time." in result:
-        print("\nSwitching to stasis protocols and will await your command.\n")
-        send_to_GUI(True, "Switching to stasis protocols and will await your command.", False)
-        stasis_protocol()
-        result = mic.listen(timeout = 10)
-        result = result.lower()
-      else:
-        return result
+      if "timeout: no speech detected within the specified time." in result:
+        print("\nNo speech detected. Listening again...\n")
+        cv2.imwrite(constants.GUI_mic_png, cv2.imread(constants.background_png))
+        return None
+      return result
     except KeyboardInterrupt:
         print("Operation interrupted successfully")
   #if the loop setting is set to "True", meaning it will loop infinitely. It will never be used, but it's good to have options just in case :)
@@ -194,7 +191,8 @@ def Speak(GPT_response):
     send_to_GUI(True, GPT_response, False)
     return
 
-  Spotify.stop_song()
+  if Spotify.spotify is not None:
+    Spotify.stop_song()
 
   if len(GPT_response.split(" ")) > 70:
     Speak("I have compiled a catalog of information regarding your request. Hit 'escape' when you want to continue")
@@ -658,10 +656,19 @@ def send_message(message = ''):
 ##########-CONSTANTS AND API KEYS-############
 ##############################################
 
-# Retrieve the assistant and thread after initializing openai
-client = openai.OpenAI(api_key=constants.OpenAI_API_key)
-assistant = client.beta.assistants.retrieve(constants.OpenAI_assistant_ID)
-thread = client.beta.threads.retrieve(constants.OpenAI_thread_ID)
+# Retrieve cloud resources only when OpenAI mode is explicitly configured.
+client = assistant = thread = None
+if constants.llm_provider == "openai":
+  missing = [name for name, value in {
+    "OPENAI_API_KEY": constants.OpenAI_API_key,
+    "OPENAI_ASSISTANT_ID": constants.OpenAI_assistant_ID,
+    "OPENAI_THREAD_ID": constants.OpenAI_thread_ID,
+  }.items() if not value]
+  if missing:
+    raise RuntimeError(f"OpenAI mode requires: {', '.join(missing)}")
+  client = openai.OpenAI(api_key=constants.OpenAI_API_key)
+  assistant = client.beta.assistants.retrieve(constants.OpenAI_assistant_ID)
+  thread = client.beta.threads.retrieve(constants.OpenAI_thread_ID)
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -714,13 +721,16 @@ def main():
   while True:
     #gets the user input from the whisper function, or through an input method for TESTING ONLY
     if speak:
-      #result = Listen(loop, dictate)
-      result = input('Type now: ')
+      result = (Listen(loop, dictate)
+                if constants.input_mode == "voice"
+                else input('Type now: '))
     else:
       result = None
       #start scanning for incoming messages from the phone via email
       while not result:
         result = IOS.recieve_message()
+    if not result:
+      continue
     send_to_GUI(False, result, False)
 
     #print user's message and add the current time to send to the model
@@ -728,7 +738,9 @@ def main():
     result = result + " " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     #print the model's response
-    jarvis_response = send_to_llama(result)
+    jarvis_response = (send_to_chatGPT(result)
+                       if constants.llm_provider == "openai"
+                       else send_to_llama(result))
     print(f"\nJ.A.R.V.I.S: {jarvis_response}")
     Speak(jarvis_response)
     
@@ -744,5 +756,6 @@ if __name__ == '__main__':
   Speak(f"Good {find_time()} and welcome back sir! How can we get started today?")
   print("\nTurn your microphone on and say something!\n")
   send_to_GUI(False, "Turn your microphone on and say something!", False)
-  threading.Thread(target=VolumeControlMain).start()
+  if constants.enable_hand_volume:
+    threading.Thread(target=VolumeControlMain, daemon=True).start()
   threading.Thread(target=main).start()

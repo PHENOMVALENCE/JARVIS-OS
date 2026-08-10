@@ -22,8 +22,14 @@ def spotify_authenticate(client_id, client_secret, redirect_uri):
     auth_manager = SpotifyOAuth(client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scope=scope)
     return spotipy.Spotify(auth_manager=auth_manager)
 
+def require_spotify():
+    if spotify is None:
+        raise RuntimeError("Spotify is not configured. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to .env.")
+    return spotify
+
 def get_current_song():
     global spotify
+    spotify = require_spotify()
     current_song = spotify.current_user_playing_track()
     if current_song is None:
         return None
@@ -40,6 +46,7 @@ def get_current_song():
 
 def play_song():
     global spotify
+    spotify = require_spotify()
     try:
         spotify.start_playback()
     except spotipy.SpotifyException as e:
@@ -47,6 +54,7 @@ def play_song():
     
 def stop_song():
     global spotify
+    spotify = require_spotify()
     try:
         spotify.pause_playback()
     except spotipy.SpotifyException as e:
@@ -54,6 +62,7 @@ def stop_song():
     
 def next_song():
     global spotify
+    spotify = require_spotify()
     try:
         spotify.next_track()
     except spotipy.SpotifyException as e:
@@ -61,12 +70,15 @@ def next_song():
 
 def previous_song():
     global spotify
+    spotify = require_spotify()
     try:
         spotify.previous_track()
     except spotipy.SpotifyException as e:
         return f"Error in skipping to previous playback: {str(e)}"
 
 def add_to_queue(track_name, artist_name = None):
+    global spotify
+    spotify = require_spotify()
 
     if artist_name:
         results = spotify.search(q=f"track:{track_name} artist:{artist_name}", type='track')
@@ -83,6 +95,8 @@ def add_to_queue(track_name, artist_name = None):
     spotify.add_to_queue(uri=uri)
     
 def play_track(track_name, artist_name = None):
+    global spotify
+    spotify = require_spotify()
     if artist_name:
         results = spotify.search(q=f"track:{track_name} artist:{artist_name}", type='track')
     else:
@@ -129,7 +143,8 @@ def volume_control(command, given_vol):
 
 
 
-spotify = spotify_authenticate(constants.client_id, constants.client_secret, constants.redirect_uri)
+spotify = (spotify_authenticate(constants.client_id, constants.client_secret, constants.redirect_uri)
+           if constants.client_id and constants.client_secret else None)
 if __name__ == "__main__":
    #for testing
    add_to_queue('Bed_Chem')
