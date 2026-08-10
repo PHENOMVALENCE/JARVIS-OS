@@ -15,7 +15,8 @@ class WindowsActionTests(unittest.TestCase):
             with patch("os.startfile", create=True) as startfile:
                 result = WindowsActions(home).execute(Command("open_folder", {"path": "Downloads"}))
             self.assertTrue(result.success)
-            startfile.assert_called_once_with(str(home / "Downloads"))
+            opened = Path(startfile.call_args.args[0]).resolve()
+            self.assertEqual(opened, (home / "Downloads").resolve())
 
     def test_missing_folder_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
