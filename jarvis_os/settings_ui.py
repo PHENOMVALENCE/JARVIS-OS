@@ -14,7 +14,7 @@ ACTIONS = (
     "open_app", "open_folder", "find_files", "web_search", "spotify_play",
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
     "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
-    "close_app", "delete_path",
+    "close_app", "delete_path", "index_documents", "semantic_search",
 )
 
 
@@ -65,6 +65,14 @@ class SettingsWindow(tk.Toplevel):
         self.work_apps = ttk.Entry(frame)
         self.work_apps.insert(0, ", ".join(values["work_apps"]))
         self.work_apps.pack(fill="x")
+        ttk.Label(frame, text="Indexed folders (one absolute path per line)").pack(anchor="w", pady=(12, 2))
+        self.indexed_folders = tk.Text(frame, height=4, wrap="none")
+        self.indexed_folders.insert("1.0", "\n".join(values.get("indexed_folders", [])))
+        self.indexed_folders.pack(fill="x")
+        ttk.Label(frame, text="Local embedding model").pack(anchor="w", pady=(12, 2))
+        self.embedding_model = ttk.Entry(frame)
+        self.embedding_model.insert(0, values.get("embedding_model", "nomic-embed-text"))
+        self.embedding_model.pack(fill="x")
 
     def _build_permissions(self):
         frame = ttk.Frame(self.tabs, padding=18)
@@ -117,6 +125,8 @@ class SettingsWindow(tk.Toplevel):
             "privacy_mode": self.privacy.get(), "ollama_model": self.model.get().strip() or "gemma2:2b",
             "whisper_model": self.whisper.get(),
             "work_apps": [item.strip() for item in self.work_apps.get().split(",") if item.strip()],
+            "indexed_folders": [item.strip() for item in self.indexed_folders.get("1.0", "end").splitlines() if item.strip()],
+            "embedding_model": self.embedding_model.get().strip() or "nomic-embed-text",
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)
