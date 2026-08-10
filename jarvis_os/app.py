@@ -17,6 +17,7 @@ from .settings import Settings
 from .settings_ui import SettingsWindow
 from .storage import Database, PermissionRepository, SettingsRepository
 from .workflows import WorkflowEngine, WorkflowRepository
+from .workflow_ui import WorkflowWindow
 
 
 BG = "#070b12"
@@ -78,6 +79,10 @@ class JarvisApp:
             header, text="SETTINGS", command=self.open_settings, bg=BG, fg=MUTED,
             activebackground=PANEL, activeforeground=TEXT, relief="flat", cursor="hand2",
         ).pack(side="right", padx=(0, 18))
+        tk.Button(
+            header, text="WORKFLOWS", command=self.open_workflows, bg=BG, fg=MUTED,
+            activebackground=PANEL, activeforeground=TEXT, relief="flat", cursor="hand2",
+        ).pack(side="right", padx=(0, 8))
 
         self.transcript = scrolledtext.ScrolledText(
             self.root, wrap="word", bg=PANEL, fg=TEXT, insertbackground=TEXT,
@@ -171,6 +176,9 @@ class JarvisApp:
             self.root, self.settings_repo, self.permissions_repo, self.audit,
             self.settings.project_root, self.plugins,
         )
+
+    def open_workflows(self) -> None:
+        WorkflowWindow(self.root, self.workflows)
 
     def _speaker(self) -> None:
         engine = None
