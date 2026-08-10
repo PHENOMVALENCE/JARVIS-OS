@@ -20,9 +20,8 @@ pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz,
     analysis.scripts,
-    analysis.binaries,
-    analysis.datas,
     [],
+    exclude_binaries=True,
     name="JARVIS-Mark-7",
     debug=False,
     bootloader_ignore_signals=False,
@@ -30,4 +29,12 @@ exe = EXE(
     upx=True,
     console=False,
     icon=None,
+)
+coll = COLLECT(
+    exe,
+    analysis.binaries,
+    analysis.datas,
+    strip=False,
+    upx=True,
+    name="JARVIS-Mark-7",
 )

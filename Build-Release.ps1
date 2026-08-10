@@ -8,7 +8,7 @@ if (-not (Test-Path $Python)) { throw "Run .\Setup-Jarvis.ps1 first." }
 & $Python -m unittest discover -s tests -q
 & $Python -m PyInstaller --noconfirm --clean jarvis.spec
 
-$Executable = Join-Path $ProjectRoot "dist\JARVIS-Mark-7.exe"
+$Executable = Join-Path $ProjectRoot "dist\JARVIS-Mark-7\JARVIS-Mark-7.exe"
 if (-not (Test-Path $Executable)) { throw "Release executable was not created." }
 
 if ($env:JARVIS_SIGN_CERTIFICATE) {

@@ -20,4 +20,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Mark-7-windows
-          path: dist/JARVIS-Mark-7.exe
+          path: dist/JARVIS-Mark-7/
