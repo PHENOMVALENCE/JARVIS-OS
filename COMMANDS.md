@@ -46,10 +46,20 @@ Applications with known Windows aliases open directly. Other applications are di
 ## Web, Spotify, media, and sound
 
 - `Search the internet for weather in Dar es Salaam`
+- `Research the latest battery technology` — returns an answer with current source URLs
+- `Look up the history of quantum computing` — summarizes current web search sources
+- `Explain from the web how solar cells work` — provides a source-grounded explanation
 - `Play Blinding Lights on Spotify`
 - `Pause music`, `Next song`, or `Previous song`
 - `Set volume to 40 percent`
 - `Volume up` or `Volume down`
+
+## Voice controls
+
+- Hands-free listening is enabled by default. Use **PAUSE LISTENING** or **ENABLE LISTENING** in the Voice Core panel to change it for the current session.
+- The microphone button performs one push-to-talk capture even when hands-free mode is paused.
+- Recognition pauses while J.A.R.V.I.S speaks so that its own voice is less likely to be transcribed.
+- Configure the Whisper model, preferred Windows voice, and speech speed under **Settings → General**.
 
 ## Desktop tools
 

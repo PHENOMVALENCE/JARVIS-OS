@@ -8,6 +8,9 @@ The complete Mark 7 handbook starts at [`docs/README.md`](docs/README.md). It in
 
 New Mark 7 capabilities:
 
+- Use the full command-center interface with an animated voice core, live status telemetry, quick actions, and a responsive three-panel layout.
+- Hold a hands-free conversation: J.A.R.V.I.S continuously listens when enabled, pauses during its own speech, and replies through a preferred Windows male voice.
+- Ask `Research <topic>` for a source-grounded current web answer, or `Search the internet for <topic>` to open browser results.
 - Configure behavior and per-action permissions from **SETTINGS**.
 - Build voice, manual, or daily routines from **WORKFLOWS**.
 - Press `Ctrl+Alt+J` at any time to cancel pending automation and lock sensitive actions.

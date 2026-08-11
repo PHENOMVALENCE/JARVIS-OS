@@ -51,6 +51,10 @@ Runtime settings live in the `settings` table as JSON values.
 | `conversation_memory` | `true` | Store and reuse recent conversation |
 | `ollama_model` | `gemma2:2b` | Local conversational model |
 | `whisper_model` | `base` | Lazy speech-recognition model |
+| `hands_free_enabled` | `true` | Begin continuous voice capture shortly after startup |
+| `tts_voice` | `david` | Preferred installed Windows voice hint |
+| `tts_rate` | `178` | Speech rate, clamped to 100–260 words per minute |
+| `tts_volume` | `1.0` | Speech volume, clamped to 0.0–1.0 |
 | `work_apps` | `terminal, spotify` | Applications opened by work mode |
 | `indexed_folders` | empty | Absolute folders eligible for document indexing |
 | `embedding_model` | `nomic-embed-text` | Ollama embedding model |

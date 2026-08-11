@@ -46,6 +46,14 @@ class AssistantControllerTests(unittest.TestCase):
         self.provider.reply.assert_called_once()
         self.assertIn("plan.pdf#page=2", self.provider.reply.call_args.args[0][1]["content"])
 
+    def test_web_research_synthesizes_source_grounded_answer(self):
+        self.executor.execute.return_value = ActionResult(
+            True, "Found web sources.", {"matches": ["SOURCE: Example\nURL: https://example.com\nSUMMARY: Current facts"]}
+        )
+        reply = self.controller.process("Research current battery technology")
+        self.assertEqual(reply.text, "Hello there.")
+        self.assertIn("https://example.com", self.provider.reply.call_args.args[0][1]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

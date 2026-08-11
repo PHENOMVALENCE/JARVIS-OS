@@ -104,6 +104,8 @@ The plugin loader isolates exceptions, validates manifests, and routes declared 
 
 ## Network operations
 
+Live research sends the requested search phrase to SerpAPI when `SERPAPI_API_KEY` is configured, otherwise to DuckDuckGo. Returned snippets are then sent to the selected conversation provider for synthesis. With Ollama, synthesis remains local; with OpenAI, the snippets and question are sent to OpenAI. Do not include secrets or private document text in a live research query.
+
 Network traffic may include:
 
 - Ollama calls to the configured local service;

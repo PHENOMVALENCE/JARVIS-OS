@@ -2,6 +2,8 @@
 
 ## Main window
 
+The Mark 7 command center uses most of the available desktop while preserving normal window controls. The left Voice Core shows listening state and speech configuration, the center contains the conversation stream and command composer, and the right Capability Matrix summarizes active subsystems and session status. The animated core expands while hands-free listening is active.
+
 The desktop window contains:
 
 - **J.A.R.V.I.S** title and current status;
@@ -32,6 +34,8 @@ Press `Ctrl+Alt+J` to:
 The next sensitive action may require Windows Hello, depending on settings and device availability. Emergency stop cannot forcibly undo an external operation that another application has already completed.
 
 ## Voice input
+
+Hands-free mode is enabled by default. After startup, the microphone initializes in a background thread and repeatedly listens for an utterance. Recognition pauses while J.A.R.V.I.S speaks, then resumes automatically. Use **PAUSE LISTENING** when privacy, background audio, or a meeting makes continuous recognition undesirable. The **MIC** button remains available for a single push-to-talk utterance.
 
 Click **MIC** to start a ten-second listening window. Whisper is loaded lazily on first use, so the first transcription takes longer. If no speech is detected, the status changes without sending an empty request.
 
@@ -115,6 +119,18 @@ Search my documents for the launch budget
 ```
 
 Configure indexed folders first. Indexing and screen capture are permissioned because they read local content.
+
+### Live web research
+
+Use an explicit research phrase when the answer should use current internet results:
+
+```text
+Research the latest Windows accessibility features
+Look up current developments in battery storage
+Explain from the web how passkeys work
+```
+
+J.A.R.V.I.S retrieves up to five results, supplies their titles, URLs, and snippets to the configured language model, and asks it to answer with inline source URLs. `SERPAPI_API_KEY` enables Google results through SerpAPI; without it, the assistant uses DuckDuckGo HTML results. Search snippets can be incomplete, so follow the URLs for high-stakes or highly detailed claims.
 
 ### Notes and productivity
 

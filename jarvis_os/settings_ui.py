@@ -13,7 +13,7 @@ from .storage import PermissionRepository, SettingsRepository
 
 
 ACTIONS = (
-    "open_app", "open_folder", "find_files", "web_search", "spotify_play",
+    "open_app", "open_folder", "find_files", "web_search", "web_research", "spotify_play",
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
     "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
     "close_app", "delete_path", "index_documents", "semantic_search",
@@ -55,6 +55,7 @@ class SettingsWindow(tk.Toplevel):
         self.proactive = tk.BooleanVar(value=values.get("proactive_enabled", True))
         self.hello = tk.BooleanVar(value=values.get("hello_for_high_risk", False))
         self.wake_word = tk.BooleanVar(value=values.get("wake_word_enabled", False))
+        self.hands_free = tk.BooleanVar(value=values.get("hands_free_enabled", True))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
@@ -62,6 +63,7 @@ class SettingsWindow(tk.Toplevel):
             ("Proactive reminders and system health alerts", self.proactive),
             ("Require Windows Hello for high-risk actions", self.hello),
             ("Listen for the 'Jarvis' wake word (requires PORCUPINE_API_KEY)", self.wake_word),
+            ("Hands-free conversation (continuously listen when not speaking)", self.hands_free),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -72,6 +74,13 @@ class SettingsWindow(tk.Toplevel):
         self.whisper = ttk.Combobox(frame, values=("tiny", "base", "small", "medium", "large"), state="readonly")
         self.whisper.set(values["whisper_model"])
         self.whisper.pack(fill="x")
+        ttk.Label(frame, text="Speech voice hint (for example: David or Mark)").pack(anchor="w", pady=(12, 2))
+        self.tts_voice = ttk.Entry(frame)
+        self.tts_voice.insert(0, values.get("tts_voice", "david"))
+        self.tts_voice.pack(fill="x")
+        ttk.Label(frame, text="Speech rate (words per minute)").pack(anchor="w", pady=(12, 2))
+        self.tts_rate = ttk.Spinbox(frame, from_=100, to=260)
+        self.tts_rate.set(values.get("tts_rate", 178)); self.tts_rate.pack(fill="x")
         ttk.Label(frame, text="Work mode apps (comma separated)").pack(anchor="w", pady=(12, 2))
         self.work_apps = ttk.Entry(frame)
         self.work_apps.insert(0, ", ".join(values["work_apps"]))
@@ -168,6 +177,9 @@ class SettingsWindow(tk.Toplevel):
             "quiet_hours_start": self.quiet_start.get().strip(), "quiet_hours_end": self.quiet_end.get().strip(),
             "hello_for_high_risk": self.hello.get(), "security_timeout_minutes": int(self.security_timeout.get()),
             "wake_word_enabled": self.wake_word.get(),
+            "hands_free_enabled": self.hands_free.get(),
+            "tts_voice": self.tts_voice.get().strip() or "david",
+            "tts_rate": int(self.tts_rate.get()),
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)

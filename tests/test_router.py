@@ -13,6 +13,11 @@ class CommandRouterTests(unittest.TestCase):
         self.assertEqual(command.action, "web_search")
         self.assertEqual(command.arguments["query"], "weather tomorrow")
 
+    def test_routes_answered_web_research(self):
+        command = self.router.route("Research the latest battery technology")
+        self.assertEqual(command.action, "web_research")
+        self.assertEqual(command.arguments["query"], "the latest battery technology")
+
     def test_routes_known_folder(self):
         command = self.router.route("Open my Downloads folder")
         self.assertEqual(command.action, "open_folder")
