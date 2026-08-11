@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 import re
 import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,13 +39,35 @@ class ChatProvider(Protocol):
 
 
 class OllamaProvider:
-    def __init__(self, model: str):
+    """Local model access that keeps the model resident between requests.
+
+    Loading gemma2:2b from cold costs far more than generating the answer, so
+    an unloaded model is the difference between a 15 second wait and one second.
+    """
+
+    def __init__(self, model: str, keep_alive: str = "30m"):
         self.model = model
+        self.keep_alive = keep_alive
+
+    def warm(self) -> None:
+        """Load the model without generating, so the first request is fast."""
+        import ollama
+        ollama.generate(model=self.model, prompt="", keep_alive=self.keep_alive)
 
     def reply(self, messages: list[dict[str, str]]) -> str:
         import ollama
-        response = ollama.chat(model=self.model, messages=messages)
+        response = ollama.chat(model=self.model, messages=messages, keep_alive=self.keep_alive)
         return response["message"]["content"].strip()
+
+    def stream(self, messages: list[dict[str, str]]) -> Iterator[str]:
+        import ollama
+        stream = ollama.chat(
+            model=self.model, messages=messages, stream=True, keep_alive=self.keep_alive
+        )
+        for part in stream:
+            chunk = (part.get("message") or {}).get("content") or ""
+            if chunk:
+                yield chunk
 
 
 class OpenAIProvider:
@@ -56,6 +79,16 @@ class OpenAIProvider:
         from openai import OpenAI
         response = OpenAI(api_key=self.api_key).chat.completions.create(model=self.model, messages=messages)
         return (response.choices[0].message.content or "").strip()
+
+    def stream(self, messages: list[dict[str, str]]) -> Iterator[str]:
+        from openai import OpenAI
+        completion = OpenAI(api_key=self.api_key).chat.completions.create(
+            model=self.model, messages=messages, stream=True
+        )
+        for part in completion:
+            chunk = part.choices[0].delta.content or ""
+            if chunk:
+                yield chunk
 
 
 class ConversationStore:
@@ -128,6 +161,21 @@ class AssistantController:
         history = self.store.recent(limit=limit)
         return "\n".join(f"{item['role']}: {item['content'][:240]}" for item in history)
 
+    def _answer(self, messages: list[dict[str, str]], on_chunk: Callable[[str], None] | None) -> str:
+        """Stream the reply when the caller can use it, so speech starts early."""
+        stream = getattr(self.provider, "stream", None)
+        if not on_chunk or not callable(stream):
+            return self.provider.reply(messages)
+        parts: list[str] = []
+        try:
+            for chunk in stream(messages):
+                parts.append(chunk)
+                on_chunk(chunk)
+        except Exception:
+            if not parts:
+                return self.provider.reply(messages)
+        return "".join(parts).strip()
+
     def _system_prompt(self) -> str:
         if not self._last_action_context:
             return SYSTEM_PROMPT
@@ -142,7 +190,7 @@ class AssistantController:
             return command, False
         return Command("web_research", {"query": question}, raw_text=command.raw_text), True
 
-    def process(self, text: str, spoken: bool = False) -> AssistantReply:
+    def process(self, text: str, spoken: bool = False, on_chunk: Callable[[str], None] | None = None) -> AssistantReply:
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
             result = self.workflows.run(workflow)
@@ -159,19 +207,19 @@ class AssistantController:
             self._last_action_context = f"{command.action} -> {result.message[:240]}"
             if command.action == "semantic_search" and result.success and details:
                 context = "\n\n".join(details)
-                answer = self.provider.reply([
+                answer = self._answer([
                     {"role": "system", "content": "Answer only from the supplied local document passages. Cite each source path and page used. Say when the evidence is insufficient."},
                     *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
-                ])
+                ], on_chunk)
                 return AssistantReply(answer, details)
             if command.action == "web_research" and result.success and details:
                 context = "\n\n".join(details)
-                answer = self.provider.reply([
+                answer = self._answer([
                     {"role": "system", "content": "Answer the question using the supplied current web search results. Be clear and useful. Cite supporting URLs inline. Distinguish facts from inference and say when the snippets are insufficient."},
                     *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nWeb results:\n{context}"},
-                ])
+                ], on_chunk)
                 return AssistantReply(answer, details)
             if not auto_research:
                 return AssistantReply(result.message, details)
@@ -187,7 +235,7 @@ class AssistantController:
             *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
             *history,
         ]
-        reply = self.provider.reply(messages)
+        reply = self._answer(messages, on_chunk)
         if memory_enabled:
             self.store.append("assistant", reply)
         return AssistantReply(reply)
@@ -299,4 +347,5 @@ def make_provider(settings: Settings, settings_repo=None) -> ChatProvider:
         model = settings_repo.get("openai_chat_model", "gpt-4o-mini") if settings_repo else "gpt-4o-mini"
         return OpenAIProvider(settings.openai_api_key, str(model))
     model = settings_repo.get("ollama_model", settings.ollama_model) if settings_repo else settings.ollama_model
-    return OllamaProvider(model)
+    keep_alive = settings_repo.get("model_keep_alive", "30m") if settings_repo else "30m"
+    return OllamaProvider(model, str(keep_alive))

@@ -91,6 +91,59 @@ class AssistantControllerTests(unittest.TestCase):
         self.assertIn("https://example.com", self.provider.reply.call_args.args[0][1]["content"])
 
 
+class StreamingTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = ConversationStore(Path(self.temp.name) / "conversation.db")
+        self.executor = Mock()
+        self.provider = Mock()
+        self.provider.reply.return_value = "Whole answer."
+        self.controller = AssistantController(self.executor, self.store, self.provider)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_streams_chunks_to_the_caller_and_returns_the_full_reply(self):
+        self.provider.stream.return_value = iter(["Artificial ", "intelligence ", "is broad."])
+        received = []
+        reply = self.controller.process("What is AI", on_chunk=received.append)
+        self.assertEqual(received, ["Artificial ", "intelligence ", "is broad."])
+        self.assertEqual(reply.text, "Artificial intelligence is broad.")
+        self.provider.reply.assert_not_called()
+
+    def test_persists_the_assembled_streamed_reply(self):
+        self.provider.stream.return_value = iter(["Hello ", "there."])
+        self.controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(self.store.recent()[-1]["content"], "Hello there.")
+
+    def test_falls_back_to_a_whole_reply_when_streaming_fails_immediately(self):
+        self.provider.stream.side_effect = OSError("stream unavailable")
+        reply = self.controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(reply.text, "Whole answer.")
+
+    def test_keeps_partial_output_when_streaming_breaks_midway(self):
+        def broken():
+            yield "The first part is here"
+            raise OSError("connection lost")
+
+        self.provider.stream.return_value = broken()
+        reply = self.controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(reply.text, "The first part is here")
+        self.provider.reply.assert_not_called()
+
+    def test_uses_the_whole_reply_when_no_callback_is_supplied(self):
+        self.controller.process("Hi")
+        self.provider.reply.assert_called_once()
+        self.provider.stream.assert_not_called()
+
+    def test_provider_without_streaming_still_works(self):
+        provider = Mock(spec=["reply"])
+        provider.reply.return_value = "Plain answer."
+        controller = AssistantController(self.executor, self.store, provider)
+        reply = controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(reply.text, "Plain answer.")
+
+
 class VoiceInputTests(unittest.TestCase):
     def _voice(self, transcripts, **overrides):
         voice = VoiceInput(VoiceConfig(**overrides))

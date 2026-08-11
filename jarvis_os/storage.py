@@ -127,6 +127,7 @@ class SettingsRepository:
         "mic_extended_listening": True,
         "mic_device_index": None,
         "wake_word_sensitivity": 0.55,
+        "model_keep_alive": "30m",
     }
 
     def __init__(self, database: Database):

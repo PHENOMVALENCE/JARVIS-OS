@@ -7,9 +7,41 @@ from jarvis_os.speech import (
     DEFAULT_EDGE_VOICE,
     EdgeSpeech,
     HandsFreeListener,
+    SentenceBuffer,
     SpeechEngine,
     prepare_for_speech,
 )
+
+
+class SentenceBufferTests(unittest.TestCase):
+    def test_releases_each_sentence_as_it_completes(self):
+        buffer = SentenceBuffer()
+        self.assertEqual(buffer.push("Artificial intelligence is a field of study"), [])
+        self.assertEqual(
+            buffer.push(". It lets machines reason. "),
+            ["Artificial intelligence is a field of study.", "It lets machines reason."],
+        )
+
+    def test_holds_back_fragments_too_short_to_speak(self):
+        buffer = SentenceBuffer()
+        self.assertEqual(buffer.push("Sure. "), [])
+        self.assertEqual(buffer.push("Here is the full explanation you asked for. "),
+                         ["Sure. Here is the full explanation you asked for."])
+
+    def test_flush_returns_the_trailing_text(self):
+        buffer = SentenceBuffer()
+        buffer.push("A complete sentence right here. And a trailing thought")
+        self.assertEqual(buffer.flush(), "And a trailing thought")
+        self.assertEqual(buffer.flush(), "")
+
+    def test_handles_quotes_and_brackets_after_terminators(self):
+        buffer = SentenceBuffer()
+        released = buffer.push('He said "this is the answer we needed." Then he left the room. ')
+        self.assertEqual(released[0], 'He said "this is the answer we needed."')
+
+    def test_does_not_split_on_decimals_mid_stream(self):
+        buffer = SentenceBuffer()
+        self.assertEqual(buffer.push("The value is 3.14 and it matters"), [])
 
 
 class SpeechEngineTests(unittest.TestCase):
