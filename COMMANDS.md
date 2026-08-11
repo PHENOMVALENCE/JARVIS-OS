@@ -59,6 +59,8 @@ Applications with known Windows aliases open directly. Other applications are di
 - Hands-free listening is enabled by default. Use **PAUSE LISTENING** or **ENABLE LISTENING** in the Voice Core panel to change it for the current session.
 - The microphone button performs one push-to-talk capture even when hands-free mode is paused.
 - Recognition pauses while J.A.R.V.I.S speaks so that its own voice is less likely to be transcribed.
+- Spoken turns allow longer sentences and brief thinking pauses. Jarvis uses a shorter, more conversational response style for voice than for typed answers.
+- Emoji, Markdown markers, code formatting, and raw URLs remain visible in the conversation but are removed from speech output.
 - Configure the Whisper model, preferred Windows voice, and speech speed under **Settings → General**.
 
 ## Desktop tools

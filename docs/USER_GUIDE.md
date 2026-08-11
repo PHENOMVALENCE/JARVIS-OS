@@ -2,7 +2,7 @@
 
 ## Main window
 
-The Mark 7 command center uses most of the available desktop while preserving normal window controls. The left Voice Core shows listening state and speech configuration, the center contains the conversation stream and command composer, and the right Capability Matrix summarizes active subsystems and session status. The animated core expands while hands-free listening is active.
+The Mark 7 command center uses most of the available desktop while preserving normal window controls. The left Voice Core shows listening state and speech configuration, the center contains the animated Live Voice stage, conversation stream, and command composer, and the right Capability Matrix summarizes active subsystems and session status. The centered rings expand while hands-free listening is active.
 
 The desktop window contains:
 
@@ -35,7 +35,11 @@ The next sensitive action may require Windows Hello, depending on settings and d
 
 ## Voice input
 
-Hands-free mode is enabled by default. After startup, the microphone initializes in a background thread and repeatedly listens for an utterance. Recognition pauses while J.A.R.V.I.S speaks, then resumes automatically. Use **PAUSE LISTENING** when privacy, background audio, or a meeting makes continuous recognition undesirable. The **MIC** button remains available for a single push-to-talk utterance.
+Hands-free mode is enabled by default. After startup, the microphone initializes in a background thread and repeatedly listens for an utterance. Each turn accepts up to 30 seconds of speech and tolerates approximately 1.25 seconds of silence so a brief thinking pause does not immediately cut off the sentence. Recognition pauses while J.A.R.V.I.S speaks, then resumes automatically. Use **PAUSE LISTENING** when privacy, background audio, or a meeting makes continuous recognition undesirable. The **MIC** button remains available for a single push-to-talk utterance.
+
+Spoken questions use a dedicated conversational response style. Jarvis accounts for ordinary filler words and self-corrections, responds briefly unless more detail is requested, and avoids stiff greetings or canned assistant language. The on-screen answer keeps useful formatting and citations, while the speech renderer removes Markdown, emoji, code blocks, and raw URLs before reading it aloud.
+
+This mode improves turn-taking but is not full-duplex: the microphone deliberately pauses during Jarvis's response to prevent the assistant from transcribing itself. Pause or mute hands-free mode in noisy rooms for the best accuracy.
 
 Click **MIC** to start a ten-second listening window. Whisper is loaded lazily on first use, so the first transcription takes longer. If no speech is detected, the status changes without sending an empty request.
 
