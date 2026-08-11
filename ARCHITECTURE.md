@@ -20,7 +20,17 @@ The desktop runtime is intentionally split into small layers:
 - `jarvis_os/app.py` owns the Tk desktop UI, tray icon, worker queues, speech output, and confirmations.
 - `jarvis_os/router.py` maps common natural language to typed commands without model involvement. It strips the spoken wake name and politeness first, and exposes `needs_live_information` so the controller can send time-sensitive questions to live sources instead of stale model weights.
 - `jarvis_os/web_research.py` grounds answers using documented public APIs only (SerpAPI when a key is present, otherwise the DuckDuckGo Instant Answer and Wikipedia REST APIs). A failing provider degrades the answer rather than breaking it.
-- `jarvis_os/speech.py` queues speech off the UI thread, preferring Edge neural voices and falling back to offline SAPI.
+- `jarvis_os/speech.py` queues speech off the UI thread, preferring Piper or Edge neural voices and falling back to offline SAPI.
+
+The interface is built from a single visual language rather than per-widget colours:
+
+- `theme.py` holds the palette, typography, spacing, and the assistant states. Nothing else defines a colour.
+- `widgets.py` supplies the primitives Tk lacks: rounded cards, buttons with hover and press states, status pills, and the input meter, all drawn on canvases.
+- `orb.py` is the voice core. It reads live microphone level and deforms with it, so the animation reflects the room instead of running on a timer.
+- `audio_level.py` measures input loudness and discards the audio. It never transcribes, and it also supplies the room-tone reading used to calibrate the speech threshold.
+- `setup_ui.py` is the first-run wizard; `startup.py` owns the sign-in entry for both the wizard and the settings screen.
+
+A single `set_state` call moves the orb, the status chip, the caption, and the session note together, so they cannot disagree about what the assistant is doing.
 - `jarvis_os/actions.py` contains explicit Windows capabilities. It does not expose a general shell tool.
 - `jarvis_os/security.py` applies risk policy and records every local action in SQLite.
 - `jarvis_os/assistant.py` handles Ollama/OpenAI conversation, persistent history, and lazy Whisper input.
