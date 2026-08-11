@@ -46,7 +46,7 @@ class JarvisApp:
         self.root = root
         self.settings = settings or Settings()
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
-        self.work: queue.Queue[str | None] = queue.Queue()
+        self.work: queue.Queue[tuple[str, bool] | None] = queue.Queue()
         self.voice = None
         self._voice_lock = threading.Lock()
         database = Database(self.settings.data_dir / "jarvis.db")
@@ -304,7 +304,7 @@ class JarvisApp:
             self.entry.delete(0, "end")
             self.add_message("YOU", text)
             self.set_status("working")
-            self.work.put(text)
+            self.work.put((text, False))
             self.security_session.touch()
         return "break"
 
@@ -350,13 +350,14 @@ class JarvisApp:
     def _submit_voice(self, text: str) -> None:
         self.add_message("YOU", text)
         self.set_status("working")
-        self.work.put(text)
+        self.work.put((text, True))
         self.security_session.touch()
 
     def _worker(self) -> None:
-        while (text := self.work.get()) is not None:
+        while (item := self.work.get()) is not None:
             try:
-                reply = self.controller.process(text)
+                text, spoken = item
+                reply = self.controller.process(text, spoken=spoken)
                 self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
             except Exception as exc:
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))
