@@ -57,12 +57,13 @@ class AssistantControllerTests(unittest.TestCase):
 
     def test_time_sensitive_question_is_answered_from_live_sources(self):
         self.executor.execute.return_value = ActionResult(
-            True, "Found web sources.", {"matches": ["SOURCE: Met\nURL: https://met.example\nSUMMARY: 24C and clear"]}
+            True, "Found web sources.",
+            {"matches": ["SOURCE: News\nURL: https://news.example\nSUMMARY: The result was announced"]}
         )
-        reply = self.controller.process("What is the weather today")
+        reply = self.controller.process("Who won the election last night")
         self.assertEqual(self.executor.execute.call_args.args[0].action, "web_research")
         self.assertEqual(reply.text, "Hello there.")
-        self.assertIn("https://met.example", self.provider.reply.call_args.args[0][1]["content"])
+        self.assertIn("https://news.example", self.provider.reply.call_args.args[0][1]["content"])
 
     def test_timeless_question_stays_conversational(self):
         self.controller.process("What is the meaning of AI")
@@ -71,7 +72,7 @@ class AssistantControllerTests(unittest.TestCase):
 
     def test_failed_automatic_search_falls_back_to_conversation(self):
         self.executor.execute.return_value = ActionResult(False, "Web research failed: no internet.")
-        reply = self.controller.process("What is the weather today")
+        reply = self.controller.process("Who won the election last night")
         self.assertEqual(reply.text, "Hello there.")
         self.assertNotIn("failed", reply.text)
 
@@ -79,7 +80,7 @@ class AssistantControllerTests(unittest.TestCase):
         settings = Mock()
         settings.get.side_effect = lambda key, default=None: False if key == "auto_web_answers" else default
         controller = AssistantController(self.executor, self.store, self.provider, settings_repo=settings)
-        controller.process("What is the weather today")
+        controller.process("Who won the election last night")
         self.executor.execute.assert_not_called()
 
     def test_web_research_synthesizes_source_grounded_answer(self):

@@ -71,7 +71,7 @@ class CommandRouterTests(unittest.TestCase):
         for spoken, expected in (
             ("Jarvis search online what is the meaning of AI", "what is the meaning of ai"),
             ("Search online for the meaning of AI", "the meaning of ai"),
-            ("Look up the weather in Dar es Salaam", "the weather in dar es salaam"),
+            ("Look up the history of Dar es Salaam", "the history of dar es salaam"),
             ("Can you find out who won the election", "who won the election"),
             ("Find out about quantum computing", "quantum computing"),
         ):

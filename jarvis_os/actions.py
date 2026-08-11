@@ -13,7 +13,9 @@ from urllib.parse import quote
 
 from .commands import ActionResult, Command
 from .facts import FactService
+from .file_search import FileSearch
 from .router import browser_search_url
+from .weather import WeatherService
 from .web_research import WebResearch
 
 
@@ -47,7 +49,7 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
@@ -55,6 +57,8 @@ class WindowsActions:
         self.knowledge = knowledge
         self.web_research_service = web_research or WebResearch()
         self.facts = FactService(self.home)
+        self.file_search = FileSearch(self.home)
+        self.weather_service = weather or WeatherService()
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -91,6 +95,9 @@ class WindowsActions:
             "convert": self.facts.convert,
             "battery": self.facts.battery,
             "disk_space": self.facts.disk_space,
+            "weather": self.weather,
+            "forecast": self.forecast,
+            "read_screen": self.read_screen,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -168,21 +175,61 @@ class WindowsActions:
         return ActionResult(True, f"Found {len(passages)} web sources for {query}.", {"matches": passages})
 
     def find_files(self, args: dict) -> ActionResult:
-        query = str(args["query"]).lower().strip("* ")
+        query = str(args["query"]).strip()
         if not query:
             return ActionResult(False, "Please provide a file name to search for.")
-        matches: list[str] = []
-        for root, dirs, files in os.walk(self.home):
-            dirs[:] = [d for d in dirs if d not in {".git", ".venv", "node_modules", "AppData"}]
-            for name in [*dirs, *files]:
-                if query in name.lower():
-                    matches.append(str(Path(root) / name))
-                    if len(matches) == 50:
-                        break
-            if len(matches) == 50:
-                break
+        matches = self.file_search.search(query)
         message = f"Found {len(matches)} matching item(s)." if matches else f"No files matched {query}."
         return ActionResult(bool(matches), message, {"matches": matches})
+
+    def weather(self, args: dict) -> ActionResult:
+        return self._weather_answer(str(args.get("place", "")), forecast=False)
+
+    def forecast(self, args: dict) -> ActionResult:
+        return self._weather_answer(str(args.get("place", "")), forecast=True)
+
+    def _weather_answer(self, place: str, forecast: bool) -> ActionResult:
+        place = place.strip() or str(
+            self.settings_repo.get("home_location", "") if self.settings_repo else ""
+        ).strip()
+        if not place:
+            return ActionResult(
+                False,
+                "Tell me which place you mean, or set your home location in Settings.",
+            )
+        try:
+            service = self.weather_service
+            answer = service.forecast(place) if forecast else service.current(place)
+        except Exception as exc:
+            return ActionResult(False, f"I could not reach the weather service: {exc}")
+        if not answer:
+            return ActionResult(False, f"I could not find a place called {place}.")
+        return ActionResult(True, answer)
+
+    def read_screen(self, args: dict) -> ActionResult:
+        """Extract on-screen text locally, with no cloud vision call."""
+        if self.settings_repo and self.settings_repo.get("privacy_mode", False):
+            return ActionResult(False, "Screen reading is blocked while privacy mode is enabled.")
+        from PIL import ImageGrab
+
+        from .ocr import ScreenTextReader
+
+        reader = ScreenTextReader()
+        if not reader.available():
+            return ActionResult(False, "Windows OCR is not available for this user profile.")
+        folder = self.data_dir / "screenshots"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"ocr-{datetime.now():%Y%m%d-%H%M%S}.png"
+        ImageGrab.grab(all_screens=True).save(path)
+        try:
+            text = reader.summarize(reader.read(path))
+        finally:
+            path.unlink(missing_ok=True)
+        if not text:
+            return ActionResult(False, "I could not find any readable text on the screen.")
+        query = str(args.get("query", "")).strip()
+        message = f"Read {len(text.splitlines())} line(s) of on-screen text."
+        return ActionResult(True, message, {"matches": [text], "query": query})
 
     @staticmethod
     def spotify_play(args: dict) -> ActionResult:

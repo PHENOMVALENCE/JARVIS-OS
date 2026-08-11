@@ -51,6 +51,15 @@ def strip_wake_name(text: str) -> str:
     return TRAILING_POLITENESS.sub("", value).strip() or str(text).strip()
 
 
+_EXPLICIT_BROWSER_SEARCH = re.compile(
+    r"^(?:search\s+(?:the\s+)?(?:web|internet|google)\s+for"
+    r"|google\s"
+    r"|browse\s+for"
+    r"|(?:open|show(?:\s+me)?)\s+(?:the\s+)?.*results\s+for)\b",
+    re.IGNORECASE,
+)
+
+
 class CommandRouter:
     """Route common commands locally and leave general conversation to the LLM."""
 
@@ -69,6 +78,36 @@ class CommandRouter:
         normalized = re.sub(r"\s+", " ", raw.lower()).strip(" .!?")
         if not normalized:
             return Command("noop", raw_text=raw)
+
+        # Weather has its own free provider; encyclopedic search cannot answer it.
+        # An explicit request for browser results still wins over the shortcut.
+        wants_browser = _EXPLICIT_BROWSER_SEARCH.match(normalized)
+        if not wants_browser and (
+            re.search(r"\b(?:weather|forecast)\b", normalized)
+            or re.match(r"(?:is|will) it (?:going to )?(?:rain|snow|be (?:hot|cold|warm|sunny))", normalized)
+        ):
+            place = ""
+            location = re.search(
+                r"\b(?:in|for|at)\s+(.+?)"
+                r"(?:\s+(?:today|tonight|tomorrow|this week|next week|this weekend|right now))?$",
+                normalized,
+            )
+            if location:
+                place = location.group(1).strip()
+            ahead = re.search(
+                r"\bforecast\b|\bthis week\b|\bnext (?:few days|week)\b|\btomorrow\b|\bweekend\b|\bcoming days\b",
+                normalized,
+            )
+            return Command("forecast" if ahead else "weather", {"place": place}, raw_text=raw)
+
+        match = re.match(
+            r"(?:read|what does)\s+(?:the\s+)?screen(?:\s+say)?(?:\s+(.+))?$"
+            r"|read (?:the )?(?:text|words) on (?:my |the )?screen"
+            r"|what does (?:it|this) say(?: on (?:my |the )?screen)?",
+            normalized,
+        )
+        if match:
+            return Command("read_screen", {"query": (match.group(1) or "").strip()}, Risk.MEDIUM, raw)
 
         # Questions the computer can answer exactly, with no model round trip.
         if re.fullmatch(r"(?:what(?:'s| is)\s+)?(?:the\s+)?time(?:\s+is\s+it)?|what time is it(?:\s+now)?|tell me the time", normalized):

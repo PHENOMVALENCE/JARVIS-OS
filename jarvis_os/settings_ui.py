@@ -15,6 +15,8 @@ from .storage import PermissionRepository, SettingsRepository
 
 ACTIONS = (
     "open_app", "open_folder", "find_files", "web_search", "web_research", "spotify_play",
+    "weather", "forecast", "read_screen", "current_time", "current_date",
+    "calculate", "convert", "battery", "disk_space",
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
     "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
     "close_app", "delete_path", "index_documents", "semantic_search",
@@ -104,7 +106,11 @@ class SettingsWindow(tk.Toplevel):
         ttk.Label(frame, text="Speech rate (words per minute)").pack(anchor="w", pady=(12, 2))
         self.tts_rate = ttk.Spinbox(frame, from_=100, to=260)
         self.tts_rate.set(values.get("tts_rate", 178)); self.tts_rate.pack(fill="x")
-        ttk.Label(frame, text="Vision model (screen analysis)").pack(anchor="w", pady=(16, 2))
+        ttk.Label(frame, text="Home location (used when you ask for the weather)").pack(anchor="w", pady=(16, 2))
+        self.home_location = ttk.Entry(frame)
+        self.home_location.insert(0, values.get("home_location", ""))
+        self.home_location.pack(fill="x")
+        ttk.Label(frame, text="Vision model (screen analysis)").pack(anchor="w", pady=(12, 2))
         self.vision_model = ttk.Combobox(frame, values=("gpt-4o", "gpt-4o-mini"), state="readonly")
         self.vision_model.set(values.get("vision_model", "gpt-4o"))
         self.vision_model.pack(fill="x")
@@ -228,6 +234,7 @@ class SettingsWindow(tk.Toplevel):
             "tts_engine": self.tts_engine.get().strip() or "edge",
             "edge_voice": self.edge_voice.get().strip() or DEFAULT_EDGE_VOICE,
             "vision_model": self.vision_model.get(),
+            "home_location": self.home_location.get().strip(),
             "mic_energy": int(self.mic_energy.get()),
             "mic_pause": float(self.mic_pause.get()),
             "mic_timeout": int(self.mic_timeout.get()),

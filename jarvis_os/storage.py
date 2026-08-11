@@ -129,6 +129,7 @@ class SettingsRepository:
         "wake_word_sensitivity": 0.55,
         "model_keep_alive": "30m",
         "stt_backend": "faster_whisper",
+        "home_location": "",
     }
 
     def __init__(self, database: Database):

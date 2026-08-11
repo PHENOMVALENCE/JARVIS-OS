@@ -213,6 +213,14 @@ class AssistantController:
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
                 ], on_chunk)
                 return AssistantReply(answer, details)
+            if command.action == "read_screen" and result.success and details:
+                question = str((result.data or {}).get("query") or "").strip()
+                answer = self._answer([
+                    {"role": "system", "content": "Text was read from the user's screen by local OCR. Answer using only that text. OCR output can be garbled or out of order, so say when something is unclear rather than guessing."},
+                    *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
+                    {"role": "user", "content": f"Question: {question or 'What is on my screen?'}\n\nScreen text:\n{details[0]}"},
+                ], on_chunk)
+                return AssistantReply(answer)
             if command.action == "web_research" and result.success and details:
                 context = "\n\n".join(details)
                 answer = self._answer([
