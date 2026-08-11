@@ -113,6 +113,13 @@ class AssistantController:
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
                 ])
                 return AssistantReply(answer, details)
+            if command.action == "web_research" and result.success and details:
+                context = "\n\n".join(details)
+                answer = self.provider.reply([
+                    {"role": "system", "content": "Answer the question using the supplied current web search results. Be clear and useful. Cite supporting URLs inline. Distinguish facts from inference and say when the snippets are insufficient."},
+                    {"role": "user", "content": f"Question: {command.arguments['query']}\n\nWeb results:\n{context}"},
+                ])
+                return AssistantReply(answer, details)
             return AssistantReply(result.message, details)
         memory_enabled = not self.settings_repo or self.settings_repo.get("conversation_memory", True)
         if memory_enabled:

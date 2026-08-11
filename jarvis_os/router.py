@@ -27,6 +27,13 @@ class CommandRouter:
         if not normalized:
             return Command("noop", raw_text=raw)
 
+        match = re.match(
+            r"(?:research|look up|answer from (?:the )?(?:web|internet)|explain from (?:the )?(?:web|internet))\s+(.+)",
+            normalized,
+        )
+        if match:
+            return Command("web_research", {"query": match.group(1)}, raw_text=raw)
+
         match = re.match(r"(?:search (?:the )?(?:web|internet|google) for|google)\s+(.+)", normalized)
         if match:
             return Command("web_search", {"query": match.group(1)}, raw_text=raw)

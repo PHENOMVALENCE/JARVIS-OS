@@ -13,6 +13,7 @@ from urllib.parse import quote
 
 from .commands import ActionResult, Command
 from .router import browser_search_url
+from .web_research import WebResearch
 
 
 APP_ALIASES = {
@@ -45,17 +46,19 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
         self.openai_api_key = openai_api_key
         self.knowledge = knowledge
+        self.web_research_service = web_research or WebResearch()
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
             "open_app": self.open_app,
             "web_search": self.web_search,
+            "web_research": self.web_research,
             "find_files": self.find_files,
             "spotify_play": self.spotify_play,
             "media": self.media,
@@ -138,6 +141,19 @@ class WindowsActions:
         query = str(args["query"]).strip()
         webbrowser.open(browser_search_url(query))
         return ActionResult(True, f"Searching the web for {query}.")
+
+    def web_research(self, args: dict) -> ActionResult:
+        query = str(args["query"]).strip()
+        if not query:
+            return ActionResult(False, "Please provide a topic to research.")
+        try:
+            results = self.web_research_service.search(query)
+        except Exception as exc:
+            return ActionResult(False, f"Web research failed: {exc}")
+        passages = [item.passage() for item in results]
+        if not passages:
+            return ActionResult(False, f"I could not find reliable web results for {query}.")
+        return ActionResult(True, f"Found {len(passages)} web sources for {query}.", {"matches": passages})
 
     def find_files(self, args: dict) -> ActionResult:
         query = str(args["query"]).lower().strip("* ")

@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from jarvis_os.actions import WindowsActions
 from jarvis_os.commands import Command
@@ -31,6 +31,15 @@ class WindowsActionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             result = WindowsActions(Path(directory)).execute(Command("delete_path", {"path": "~"}))
             self.assertFalse(result.success)
+
+    def test_web_research_returns_grounding_passages(self):
+        service = Mock()
+        item = Mock()
+        item.passage.return_value = "SOURCE: Example\nURL: https://example.com"
+        service.search.return_value = [item]
+        result = WindowsActions(web_research=service).execute(Command("web_research", {"query": "topic"}))
+        self.assertTrue(result.success)
+        self.assertIn("https://example.com", result.data["matches"][0])
 
 
 if __name__ == "__main__":
