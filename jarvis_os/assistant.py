@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import re
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -15,9 +16,19 @@ from .settings import Settings
 
 
 SYSTEM_PROMPT = (
-    "You are J.A.R.V.I.S, a concise and helpful Windows desktop assistant. "
+    "You are J.A.R.V.I.S, a warm, perceptive Windows desktop assistant. Talk like a trusted, "
+    "intelligent companion: natural, relaxed, direct, and never stiff or ceremonial. Use contractions "
+    "and everyday wording. Match the user's tone without pretending to have feelings or experiences. "
     "The application handles local computer actions separately. Never claim an action occurred "
-    "unless the system reports it. Protect the user's privacy and explain uncertainty plainly."
+    "unless the system reports it. Protect the user's privacy and explain uncertainty plainly. "
+    "Avoid repetitive greetings, excessive formality, emoji, and canned phrases such as 'Certainly' "
+    "or 'How may I assist you today?'"
+)
+
+VOICE_RESPONSE_PROMPT = (
+    "This is a live spoken conversation. Infer the user's intended request from natural speech, "
+    "including harmless filler words or self-corrections. Reply in one to three conversational sentences "
+    "unless they ask for detail. Use plain spoken language with no Markdown, emoji, headings, lists, or raw URLs."
 )
 
 
@@ -96,7 +107,7 @@ class AssistantController:
         self.workflows = workflows
         self.settings_repo = settings_repo
 
-    def process(self, text: str) -> AssistantReply:
+    def process(self, text: str, spoken: bool = False) -> AssistantReply:
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
             result = self.workflows.run(workflow)
@@ -110,6 +121,7 @@ class AssistantController:
                 context = "\n\n".join(details)
                 answer = self.provider.reply([
                     {"role": "system", "content": "Answer only from the supplied local document passages. Cite each source path and page used. Say when the evidence is insufficient."},
+                    *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
                 ])
                 return AssistantReply(answer, details)
@@ -117,6 +129,7 @@ class AssistantController:
                 context = "\n\n".join(details)
                 answer = self.provider.reply([
                     {"role": "system", "content": "Answer the question using the supplied current web search results. Be clear and useful. Cite supporting URLs inline. Distinguish facts from inference and say when the snippets are insufficient."},
+                    *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nWeb results:\n{context}"},
                 ])
                 return AssistantReply(answer, details)
@@ -125,7 +138,11 @@ class AssistantController:
         if memory_enabled:
             self.store.append("user", text)
         history = self.store.recent() if memory_enabled else [{"role": "user", "content": text}]
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history]
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
+            *history,
+        ]
         reply = self.provider.reply(messages)
         if memory_enabled:
             self.store.append("assistant", reply)
@@ -140,21 +157,28 @@ class VoiceInput:
         self._microphone = None
         self._lock = threading.Lock()
 
-    def listen(self, timeout: int = 10) -> str:
+    NO_SPEECH = {"", "[blank_audio]", "[silence]", "(silence)", "thank you for watching"}
+
+    def listen(self, timeout: int = 15, phrase_time_limit: int = 30) -> str:
         with self._lock:
             if self._microphone is None:
                 import torch
                 from whisper_mic import WhisperMic
                 self._microphone = WhisperMic(
                     model=self.model, english=False, verbose=False, energy=300,
-                    pause=0.8, dynamic_energy=True, save_file=False,
+                    pause=1.25, dynamic_energy=True, save_file=False,
                     device="cuda" if torch.cuda.is_available() else "cpu",
-                    implementation="whisper", hallucinate_threshold=100,
+                    implementation="whisper", hallucinate_threshold=300,
                 )
-            result = self._microphone.listen(timeout=timeout)
-        if not result or "timeout: no speech" in result.lower():
+            result = self._microphone.listen(timeout=timeout, phrase_time_limit=phrase_time_limit)
+        return self.clean_transcript(result)
+
+    @classmethod
+    def clean_transcript(cls, result: str | None) -> str:
+        value = re.sub(r"\s+", " ", str(result or "")).strip()
+        if value.lower() in cls.NO_SPEECH or "timeout: no speech" in value.lower():
             return ""
-        return result.strip()
+        return value
 
 
 def make_provider(settings: Settings, settings_repo=None) -> ChatProvider:

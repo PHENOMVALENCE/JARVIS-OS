@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from jarvis_os.assistant import AssistantController, ConversationStore
+from jarvis_os.assistant import AssistantController, ConversationStore, VoiceInput
 from jarvis_os.commands import ActionResult
 
 
@@ -29,6 +29,15 @@ class AssistantControllerTests(unittest.TestCase):
         reply = self.controller.process("How are you?")
         self.assertEqual(reply.text, "Hello there.")
         self.assertEqual([item["role"] for item in self.store.recent()], ["user", "assistant"])
+
+    def test_spoken_chat_requests_conversational_output(self):
+        self.controller.process("So, uh, explain that", spoken=True)
+        messages = self.provider.reply.call_args.args[0]
+        self.assertTrue(any("live spoken conversation" in item["content"] for item in messages))
+
+    def test_voice_input_filters_silence_markers(self):
+        self.assertEqual(VoiceInput.clean_transcript("  [BLANK_AUDIO]  "), "")
+        self.assertEqual(VoiceInput.clean_transcript("open   Spotify"), "open Spotify")
 
     def test_chat_can_run_without_persistent_memory(self):
         settings = Mock()

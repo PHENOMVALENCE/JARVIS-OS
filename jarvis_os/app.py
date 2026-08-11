@@ -46,7 +46,7 @@ class JarvisApp:
         self.root = root
         self.settings = settings or Settings()
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
-        self.work: queue.Queue[str | None] = queue.Queue()
+        self.work: queue.Queue[tuple[str, bool] | None] = queue.Queue()
         self.voice = None
         self._voice_lock = threading.Lock()
         database = Database(self.settings.data_dir / "jarvis.db")
@@ -144,16 +144,16 @@ class JarvisApp:
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         left.grid_propagate(False)
         tk.Label(left, text="VOICE CORE", bg=PANEL, fg=MUTED, font=("Consolas", 9)).pack(anchor="w")
-        self.orb = tk.Canvas(left, width=190, height=190, bg=PANEL, highlightthickness=0)
-        self.orb.pack(pady=(15, 8))
-        self._orb_phase = 0.0
         self.voice_mode_label = tk.Label(left, text="HANDS-FREE ONLINE", bg=PANEL, fg=SUCCESS, font=("Segoe UI Semibold", 10))
-        self.voice_mode_label.pack()
+        self.voice_mode_label.pack(anchor="w", pady=(18, 4))
+        tk.Label(left, text="Jarvis listens after you finish speaking and pauses while replying.",
+                 bg=PANEL, fg=MUTED, justify="left", wraplength=185,
+                 font=("Segoe UI", 9)).pack(anchor="w", pady=(0, 10))
         self.voice_toggle = tk.Button(left, text="PAUSE LISTENING", command=self.toggle_hands_free,
                                       bg="#15334a", fg=ACCENT, activebackground="#204963",
                                       activeforeground=TEXT, relief="flat", cursor="hand2",
                                       font=("Segoe UI Semibold", 9), pady=9)
-        self.voice_toggle.pack(fill="x", pady=(10, 18))
+        self.voice_toggle.pack(fill="x", pady=(4, 18))
         self._metric(left, "VOICE ENGINE", str(self.settings_repo.get("whisper_model", "base")).upper())
         self._metric(left, "LANGUAGE MODEL", str(self.settings_repo.get("ollama_model", "gemma2:2b")))
         self._metric(left, "SECURITY", "PERMISSION GATED")
@@ -161,25 +161,36 @@ class JarvisApp:
 
         center = tk.Frame(body, bg=BG)
         center.grid(row=0, column=1, sticky="nsew")
-        center.grid_rowconfigure(1, weight=1)
+        center.grid_rowconfigure(2, weight=1)
         center.grid_columnconfigure(0, weight=1)
         section = tk.Frame(center, bg=BG)
         section.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         tk.Label(section, text="CONVERSATION STREAM", bg=BG, fg=TEXT, font=("Segoe UI Semibold", 12)).pack(side="left")
         tk.Label(section, text="LOCAL-FIRST • LIVE CONTROL • SOURCE-GROUNDED", bg=BG, fg=MUTED, font=("Consolas", 8)).pack(side="right")
+
+        voice_stage = tk.Frame(center, bg=PANEL, height=174, highlightthickness=1, highlightbackground="#172a3d")
+        voice_stage.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        voice_stage.grid_propagate(False)
+        voice_stage.grid_columnconfigure(0, weight=1)
+        self.orb = tk.Canvas(voice_stage, width=300, height=166, bg=PANEL, highlightthickness=0)
+        self.orb.grid(row=0, column=0)
+        self._orb_phase = 0.0
+        tk.Label(voice_stage, text="LIVE VOICE", bg=PANEL, fg=MUTED,
+                 font=("Consolas", 8)).place(relx=0.5, rely=0.08, anchor="center")
+
         self.transcript = scrolledtext.ScrolledText(
             center, wrap="word", bg=PANEL, fg=TEXT, insertbackground=TEXT, selectbackground="#214860",
             relief="flat", padx=24, pady=20, font=("Segoe UI", 11), state="disabled",
             highlightthickness=1, highlightbackground="#172a3d",
         )
-        self.transcript.grid(row=1, column=0, sticky="nsew")
+        self.transcript.grid(row=2, column=0, sticky="nsew")
         self.transcript.tag_configure("name_user", foreground="#b5c5d1", font=("Segoe UI Semibold", 9), spacing1=8)
         self.transcript.tag_configure("name_jarvis", foreground=ACCENT, font=("Segoe UI Semibold", 9), spacing1=8)
         self.transcript.tag_configure("body", foreground=TEXT, spacing3=12, lmargin1=4, lmargin2=4)
         self.transcript.tag_configure("detail", foreground=MUTED, lmargin1=18, lmargin2=18, spacing3=3)
 
         quick = tk.Frame(center, bg=BG, pady=9)
-        quick.grid(row=2, column=0, sticky="ew")
+        quick.grid(row=3, column=0, sticky="ew")
         for label, command in (("WEB RESEARCH", "Research "), ("OPEN APP", "Open "),
                                ("FIND FILE", "Find file "), ("WORK MODE", "Start work mode")):
             tk.Button(quick, text=label, command=lambda value=command: self._quick_prompt(value),
@@ -187,7 +198,7 @@ class JarvisApp:
                       relief="flat", font=("Consolas", 8), padx=10, pady=6, cursor="hand2").pack(side="left", padx=(0, 7))
 
         input_panel = tk.Frame(center, bg=PANEL_2, padx=12, pady=10, highlightthickness=1, highlightbackground="#23415a")
-        input_panel.grid(row=3, column=0, sticky="ew")
+        input_panel.grid(row=4, column=0, sticky="ew")
         self.entry = tk.Entry(
             input_panel, bg=PANEL_2, fg=TEXT, insertbackground=ACCENT, relief="flat",
             font=("Segoe UI", 12), bd=0,
@@ -266,16 +277,16 @@ class JarvisApp:
         self._orb_phase += 0.10
         active = self.hands_free.enabled.is_set()
         color = ACCENT if active else "#466477"
-        cx = cy = 95
+        cx, cy = 150, 92
         for index in range(4):
             pulse = math.sin(self._orb_phase + index * 0.8) * 4
-            radius = 70 - index * 13 + pulse
+            radius = 62 - index * 11 + pulse
             self.orb.create_oval(cx-radius, cy-radius, cx+radius, cy+radius,
                                  outline=color if index < 2 else ACCENT_2, width=2)
         points = []
         for index in range(48):
             angle = index * math.tau / 48
-            radius = 38 + math.sin(self._orb_phase * 2 + index * 0.75) * (7 if active else 2)
+            radius = 34 + math.sin(self._orb_phase * 2 + index * 0.75) * (7 if active else 2)
             points.extend((cx + math.cos(angle) * radius, cy + math.sin(angle) * radius))
         self.orb.create_polygon(points, outline=color, fill="#0d2233", smooth=True, width=2)
         self.orb.create_text(cx, cy, text="J7", fill=TEXT, font=("Consolas", 18, "bold"))
@@ -304,7 +315,7 @@ class JarvisApp:
             self.entry.delete(0, "end")
             self.add_message("YOU", text)
             self.set_status("working")
-            self.work.put(text)
+            self.work.put((text, False))
             self.security_session.touch()
         return "break"
 
@@ -350,13 +361,14 @@ class JarvisApp:
     def _submit_voice(self, text: str) -> None:
         self.add_message("YOU", text)
         self.set_status("working")
-        self.work.put(text)
+        self.work.put((text, True))
         self.security_session.touch()
 
     def _worker(self) -> None:
-        while (text := self.work.get()) is not None:
+        while (item := self.work.get()) is not None:
             try:
-                reply = self.controller.process(text)
+                text, spoken = item
+                reply = self.controller.process(text, spoken=spoken)
                 self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
             except Exception as exc:
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))

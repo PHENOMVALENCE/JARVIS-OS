@@ -3,9 +3,33 @@
 from __future__ import annotations
 
 import queue
+import re
 import threading
 import time
+import unicodedata
 from collections.abc import Callable
+
+
+def prepare_for_speech(text: str) -> str:
+    """Turn display-oriented assistant text into clean spoken language."""
+    value = str(text)
+    value = re.sub(r"```.*?```", " ", value, flags=re.DOTALL)
+    value = re.sub(r"`([^`]+)`", r"\1", value)
+    value = re.sub(r"!\[([^]]*)\]\([^)]+\)", r"\1", value)
+    value = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", value)
+    value = re.sub(r"https?://\S+", " ", value)
+    value = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", value)
+    value = re.sub(r"(?m)^\s*[-*+]\s+", "", value)
+    value = value.replace("**", "").replace("__", "").replace("~~", "")
+    value = re.sub(r"\bJ\.A\.R\.V\.I\.S\b", "Jarvis", value, flags=re.IGNORECASE)
+    value = "".join(
+        character for character in value
+        if not unicodedata.category(character).startswith(("So", "Sk"))
+    )
+    value = re.sub(r"\s*\n+\s*", ". ", value)
+    value = re.sub(r"\s+", " ", value).strip(" .")
+    value = re.sub(r"\.{2,}", ".", value)
+    return f"{value}." if value and value[-1] not in ".!?" else value
 
 
 class SpeechEngine:
@@ -28,7 +52,7 @@ class SpeechEngine:
         self._thread.start()
 
     def say(self, text: str) -> None:
-        cleaned = " ".join(str(text).split())
+        cleaned = prepare_for_speech(text)
         if cleaned:
             self.queue.put(cleaned)
 
