@@ -57,12 +57,13 @@ class AssistantControllerTests(unittest.TestCase):
 
     def test_time_sensitive_question_is_answered_from_live_sources(self):
         self.executor.execute.return_value = ActionResult(
-            True, "Found web sources.", {"matches": ["SOURCE: Met\nURL: https://met.example\nSUMMARY: 24C and clear"]}
+            True, "Found web sources.",
+            {"matches": ["SOURCE: News\nURL: https://news.example\nSUMMARY: The result was announced"]}
         )
-        reply = self.controller.process("What is the weather today")
+        reply = self.controller.process("Who won the election last night")
         self.assertEqual(self.executor.execute.call_args.args[0].action, "web_research")
         self.assertEqual(reply.text, "Hello there.")
-        self.assertIn("https://met.example", self.provider.reply.call_args.args[0][1]["content"])
+        self.assertIn("https://news.example", self.provider.reply.call_args.args[0][1]["content"])
 
     def test_timeless_question_stays_conversational(self):
         self.controller.process("What is the meaning of AI")
@@ -71,7 +72,7 @@ class AssistantControllerTests(unittest.TestCase):
 
     def test_failed_automatic_search_falls_back_to_conversation(self):
         self.executor.execute.return_value = ActionResult(False, "Web research failed: no internet.")
-        reply = self.controller.process("What is the weather today")
+        reply = self.controller.process("Who won the election last night")
         self.assertEqual(reply.text, "Hello there.")
         self.assertNotIn("failed", reply.text)
 
@@ -79,7 +80,7 @@ class AssistantControllerTests(unittest.TestCase):
         settings = Mock()
         settings.get.side_effect = lambda key, default=None: False if key == "auto_web_answers" else default
         controller = AssistantController(self.executor, self.store, self.provider, settings_repo=settings)
-        controller.process("What is the weather today")
+        controller.process("Who won the election last night")
         self.executor.execute.assert_not_called()
 
     def test_web_research_synthesizes_source_grounded_answer(self):
@@ -89,6 +90,59 @@ class AssistantControllerTests(unittest.TestCase):
         reply = self.controller.process("Research current battery technology")
         self.assertEqual(reply.text, "Hello there.")
         self.assertIn("https://example.com", self.provider.reply.call_args.args[0][1]["content"])
+
+
+class StreamingTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = ConversationStore(Path(self.temp.name) / "conversation.db")
+        self.executor = Mock()
+        self.provider = Mock()
+        self.provider.reply.return_value = "Whole answer."
+        self.controller = AssistantController(self.executor, self.store, self.provider)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_streams_chunks_to_the_caller_and_returns_the_full_reply(self):
+        self.provider.stream.return_value = iter(["Artificial ", "intelligence ", "is broad."])
+        received = []
+        reply = self.controller.process("What is AI", on_chunk=received.append)
+        self.assertEqual(received, ["Artificial ", "intelligence ", "is broad."])
+        self.assertEqual(reply.text, "Artificial intelligence is broad.")
+        self.provider.reply.assert_not_called()
+
+    def test_persists_the_assembled_streamed_reply(self):
+        self.provider.stream.return_value = iter(["Hello ", "there."])
+        self.controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(self.store.recent()[-1]["content"], "Hello there.")
+
+    def test_falls_back_to_a_whole_reply_when_streaming_fails_immediately(self):
+        self.provider.stream.side_effect = OSError("stream unavailable")
+        reply = self.controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(reply.text, "Whole answer.")
+
+    def test_keeps_partial_output_when_streaming_breaks_midway(self):
+        def broken():
+            yield "The first part is here"
+            raise OSError("connection lost")
+
+        self.provider.stream.return_value = broken()
+        reply = self.controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(reply.text, "The first part is here")
+        self.provider.reply.assert_not_called()
+
+    def test_uses_the_whole_reply_when_no_callback_is_supplied(self):
+        self.controller.process("Hi")
+        self.provider.reply.assert_called_once()
+        self.provider.stream.assert_not_called()
+
+    def test_provider_without_streaming_still_works(self):
+        provider = Mock(spec=["reply"])
+        provider.reply.return_value = "Plain answer."
+        controller = AssistantController(self.executor, self.store, provider)
+        reply = controller.process("Hi", on_chunk=lambda _c: None)
+        self.assertEqual(reply.text, "Plain answer.")
 
 
 class VoiceInputTests(unittest.TestCase):
@@ -124,6 +178,20 @@ class VoiceInputTests(unittest.TestCase):
         self.assertEqual(config.model, "small")
         self.assertEqual(config.energy, 220)
         self.assertFalse(config.extended_listening)
+
+    def test_defaults_to_the_quantised_recognition_backend(self):
+        self.assertEqual(VoiceConfig().implementation, "faster_whisper")
+        settings = Mock()
+        settings.get.side_effect = lambda key, default=None: (
+            "whisper" if key == "stt_backend" else default
+        )
+        self.assertEqual(VoiceConfig.from_settings(settings).implementation, "whisper")
+
+    def test_changing_the_backend_rebuilds_the_microphone(self):
+        voice = VoiceInput(VoiceConfig())
+        before = voice._signature()
+        voice.config = VoiceConfig(implementation="whisper")
+        self.assertNotEqual(before, voice._signature())
 
     def test_changing_settings_rebuilds_the_microphone(self):
         voice = VoiceInput(VoiceConfig(energy=180))

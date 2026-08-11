@@ -10,5 +10,6 @@ data/
 *.db-wal
 dist/
 build/
+models/
 installer-output/
 *.spec.bak

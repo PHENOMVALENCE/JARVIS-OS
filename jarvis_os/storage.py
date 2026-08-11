@@ -127,6 +127,12 @@ class SettingsRepository:
         "mic_extended_listening": True,
         "mic_device_index": None,
         "wake_word_sensitivity": 0.55,
+        "model_keep_alive": "30m",
+        "stt_backend": "faster_whisper",
+        "home_location": "",
+        "voice_barge_in": False,
+        "piper_voice": "en_GB-alan-medium",
+        "wake_word_backend": "openwakeword",
     }
 
     def __init__(self, database: Database):

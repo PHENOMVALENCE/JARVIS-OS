@@ -26,8 +26,8 @@ from .user_presence import SecuritySession
 from .setup_ui import FirstRunWizard
 from .updates import UpdateChecker
 from . import __version__
-from .wake_word import WakeWordListener
-from .speech import DEFAULT_EDGE_VOICE, HandsFreeListener, SpeechEngine
+from .wake_word import make_wake_word
+from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, HandsFreeListener, SentenceBuffer, SpeechEngine
 
 
 BG = "#070b12"
@@ -87,12 +87,18 @@ class JarvisApp:
             voice_hint=str(self.settings_repo.get("tts_voice", "david")),
             engine=str(self.settings_repo.get("tts_engine", "edge")),
             edge_voice=str(self.settings_repo.get("edge_voice", DEFAULT_EDGE_VOICE)),
+            piper_voice=str(self.settings_repo.get("piper_voice", DEFAULT_PIPER_VOICE)),
+            models_dir=self.settings.project_root / "models",
         )
+        self._streaming = False
+        self._sentences = SentenceBuffer()
         self.hands_free = HandsFreeListener(
             self._listen_once,
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
             lambda state: self.root.after(0, lambda: self._voice_state(state)),
-            self.speech_engine.speaking,
+            self.speech_engine.activity,
+            barge_in=bool(self.settings_repo.get("voice_barge_in", False)),
+            on_interrupt=self.stop_speaking,
         )
 
         self._configure_window()
@@ -109,6 +115,7 @@ class JarvisApp:
         if not self.settings_repo.get("first_run_complete", False):
             self.root.after(250, lambda: FirstRunWizard(self.root, self.settings_repo))
         threading.Thread(target=self._check_updates, daemon=True, name="jarvis-updates").start()
+        threading.Thread(target=self._warm_model, daemon=True, name="jarvis-warmup").start()
 
     def _configure_window(self) -> None:
         self.root.title("J.A.R.V.I.S — Mark 7 Command Center")
@@ -208,6 +215,12 @@ class JarvisApp:
         self.entry.pack(side="left", fill="x", expand=True, ipady=9, padx=(5, 10))
         self.entry.bind("<Return>", self.submit)
         self.entry.focus_set()
+        self.root.bind("<Escape>", self.stop_speaking)
+        tk.Button(
+            input_panel, text="STOP", command=self.stop_speaking, bg="#3a1c28", fg="#ff9aa8",
+            activebackground="#52212f", activeforeground=TEXT, relief="flat",
+            font=("Segoe UI Semibold", 9), padx=13, pady=9, cursor="hand2",
+        ).pack(side="left", padx=(0, 8))
         tk.Button(
             input_panel, text="MIC", command=self.listen, bg="#183149", fg=ACCENT,
             activebackground="#244866", activeforeground=TEXT, relief="flat",
@@ -294,26 +307,41 @@ class JarvisApp:
         self.orb.create_text(cx, cy, text="J7", fill=TEXT, font=("Consolas", 18, "bold"))
         self.root.after(70, self._animate_orb)
 
-    def add_message(self, sender: str, text: str, details: list[str] | None = None) -> None:
+    def _write(self, text: str, tag: str) -> None:
         self.transcript.configure(state="normal")
-        tag = "name_user" if sender == "YOU" else "name_jarvis"
-        self.transcript.insert("end", f"{sender}\n", tag)
-        self.transcript.insert("end", f"{text}\n", "body")
-        if details:
-            for item in details:
-                self.transcript.insert("end", f"• {item}\n", "detail")
-            self.transcript.insert("end", "\n")
+        self.transcript.insert("end", text, tag)
         self.transcript.configure(state="disabled")
         self.transcript.see("end")
+
+    def begin_message(self, sender: str) -> None:
+        self._write(f"{sender}\n", "name_user" if sender == "YOU" else "name_jarvis")
+
+    def end_message(self, details: list[str] | None = None) -> None:
+        self._write("\n", "body")
+        if details:
+            for item in details:
+                self._write(f"• {item}\n", "detail")
+            self._write("\n", "body")
+
+    def add_message(self, sender: str, text: str, details: list[str] | None = None) -> None:
+        self.begin_message(sender)
+        self._write(text, "body")
+        self.end_message(details)
 
     def set_status(self, text: str, color: str = ACCENT) -> None:
         self.status.configure(text=f"● {text.upper()}", fg=color)
         if hasattr(self, "session_detail"):
             self.session_detail.configure(text=f"{text.title()}\nSecure session active")
 
+    def stop_speaking(self, _event=None) -> str:
+        """Cut off the reply in progress. Interrupting should always be possible."""
+        self.speech_engine.silence()
+        return "break"
+
     def submit(self, _event=None) -> str:
         text = self.entry.get().strip()
         if text:
+            self.stop_speaking()
             self.entry.delete(0, "end")
             self.add_message("YOU", text)
             self.set_status("working")
@@ -325,6 +353,7 @@ class JarvisApp:
         return VoiceInput(VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model))
 
     def listen(self) -> None:
+        self.stop_speaking()
         self.set_status("listening")
         if self.voice is None:
             self.voice = self._make_voice_input()
@@ -375,16 +404,42 @@ class JarvisApp:
         while (item := self.work.get()) is not None:
             try:
                 text, spoken = item
-                reply = self.controller.process(text, spoken=spoken)
+                self._streaming = False
+                self._sentences = SentenceBuffer()
+                reply = self.controller.process(text, spoken=spoken, on_chunk=self._queue_chunk)
                 self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
             except Exception as exc:
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))
 
+    def _speaks(self) -> bool:
+        return bool(self.settings_repo.get("speak_responses", self.settings.speak_responses))
+
+    def _queue_chunk(self, chunk: str) -> None:
+        """Called from the worker thread as model tokens arrive."""
+        self.root.after(0, lambda: self._render_chunk(chunk))
+
+    def _render_chunk(self, chunk: str) -> None:
+        if not self._streaming:
+            self._streaming = True
+            self.begin_message("J.A.R.V.I.S")
+            self.set_status("speaking", "#b78cff")
+        self._write(chunk, "body")
+        if self._speaks():
+            for sentence in self._sentences.push(chunk):
+                self.speech_engine.say(sentence)
+
     def _deliver(self, text: str, details: list[str] | None) -> None:
-        self.add_message("J.A.R.V.I.S", text, details)
+        if self._streaming:
+            remainder = self._sentences.flush()
+            if remainder and self._speaks():
+                self.speech_engine.say(remainder)
+            self.end_message(details)
+            self._streaming = False
+        else:
+            self.add_message("J.A.R.V.I.S", text, details)
+            if self._speaks():
+                self.speech_engine.say(text)
         self.set_status("ready", SUCCESS)
-        if self.settings_repo.get("speak_responses", self.settings.speak_responses):
-            self.speech_engine.say(text)
 
     def _voice_state(self, state: str) -> None:
         self._refresh_voice_controls()
@@ -448,9 +503,10 @@ class JarvisApp:
 
     def _start_wake_word(self) -> None:
         import os
-        self.wake_word = WakeWordListener(
-            os.getenv("PORCUPINE_API_KEY", ""),
+        self.wake_word = make_wake_word(
             lambda: self.root.after(0, self.listen),
+            access_key=os.getenv("PORCUPINE_API_KEY", ""),
+            backend=str(self.settings_repo.get("wake_word_backend", "openwakeword")),
             sensitivity=float(self.settings_repo.get("wake_word_sensitivity", 0.55)),
         )
         if self.settings_repo.get("wake_word_enabled", False):
@@ -467,6 +523,17 @@ class JarvisApp:
         self.security_session.lock()
         self.add_message("J.A.R.V.I.S", "Emergency stop activated. Pending work was cleared and sensitive actions are locked.")
         self.set_status("stopped", "#ff6b7a")
+
+    def _warm_model(self) -> None:
+        """Load the local model during startup so the first question is not slow."""
+        self.speech_engine.warm()
+        warm = getattr(self.controller.provider, "warm", None)
+        if not callable(warm):
+            return
+        try:
+            warm()
+        except Exception:
+            pass
 
     def _check_updates(self) -> None:
         try:
