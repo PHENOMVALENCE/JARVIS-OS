@@ -111,6 +111,8 @@ class SettingsRepository:
         "tts_rate": 178,
         "tts_volume": 1.0,
         "tts_voice": "david",
+        "tts_engine": "edge",
+        "edge_voice": "en-GB-RyanNeural",
     }
 
     def __init__(self, database: Database):

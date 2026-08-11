@@ -1,7 +1,7 @@
 import unittest
 
 from jarvis_os.commands import Risk
-from jarvis_os.router import CommandRouter
+from jarvis_os.router import CommandRouter, strip_wake_name
 
 
 class CommandRouterTests(unittest.TestCase):
@@ -51,6 +51,37 @@ class CommandRouterTests(unittest.TestCase):
     def test_screen_capture_requires_confirmation(self):
         self.assertEqual(self.router.route("Take a screenshot").risk, Risk.MEDIUM)
         self.assertEqual(self.router.route("What is on my screen").action, "analyze_screen")
+
+    def test_strips_spoken_wake_name_before_routing(self):
+        for spoken in ("Jarvis open Notepad", "Hey Jarvis, open Notepad",
+                       "OK Jarvis open Notepad", "J.A.R.V.I.S. open Notepad"):
+            command = self.router.route(spoken)
+            self.assertEqual(command.action, "open_app", spoken)
+            self.assertEqual(command.arguments["name"], "notepad", spoken)
+
+    def test_strips_polite_lead_ins_and_trailing_politeness(self):
+        self.assertEqual(self.router.route("Jarvis, please close Spotify").action, "close_app")
+        self.assertEqual(self.router.route("Please can you open Notepad").action, "open_app")
+        self.assertEqual(self.router.route("Jarvis take a screenshot for me").action, "screenshot")
+
+    def test_wake_name_alone_is_not_swallowed(self):
+        self.assertEqual(strip_wake_name("Jarvis"), "Jarvis")
+
+    def test_routes_conversational_web_research(self):
+        for spoken, expected in (
+            ("Jarvis search online what is the meaning of AI", "what is the meaning of ai"),
+            ("Search online for the meaning of AI", "the meaning of ai"),
+            ("Look up the weather in Dar es Salaam", "the weather in dar es salaam"),
+            ("Can you find out who won the election", "who won the election"),
+            ("Find out about quantum computing", "quantum computing"),
+        ):
+            command = self.router.route(spoken)
+            self.assertEqual(command.action, "web_research", spoken)
+            self.assertEqual(command.arguments["query"], expected, spoken)
+
+    def test_browser_results_stay_separate_from_spoken_research(self):
+        self.assertEqual(self.router.route("Show me the results for python tutorials").action, "web_search")
+        self.assertEqual(self.router.route("Browse for python tutorials").action, "web_search")
 
     def test_package_management_is_high_risk(self):
         command = self.router.route("Install package VideoLAN.VLC")

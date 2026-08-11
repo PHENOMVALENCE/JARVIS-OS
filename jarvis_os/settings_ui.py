@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from .security import AuditLog
+from .speech import DEFAULT_EDGE_VOICE, EDGE_VOICES
 from .storage import PermissionRepository, SettingsRepository
 
 
@@ -74,7 +75,26 @@ class SettingsWindow(tk.Toplevel):
         self.whisper = ttk.Combobox(frame, values=("tiny", "base", "small", "medium", "large"), state="readonly")
         self.whisper.set(values["whisper_model"])
         self.whisper.pack(fill="x")
-        ttk.Label(frame, text="Speech voice hint (for example: David or Mark)").pack(anchor="w", pady=(12, 2))
+        ttk.Label(frame, text="Voice engine").pack(anchor="w", pady=(16, 2))
+        self.tts_engine = ttk.Combobox(frame, values=("edge", "windows"), state="readonly")
+        self.tts_engine.set(values.get("tts_engine", "edge"))
+        self.tts_engine.pack(fill="x")
+        ttk.Label(
+            frame,
+            text="edge = natural neural voice (needs internet); windows = offline SAPI voice",
+            foreground="#555555",
+        ).pack(anchor="w")
+        ttk.Label(frame, text="Neural voice (used when the engine is 'edge')").pack(anchor="w", pady=(12, 2))
+        self.edge_voice = ttk.Combobox(frame, values=tuple(EDGE_VOICES), state="readonly")
+        self.edge_voice.set(values.get("edge_voice", DEFAULT_EDGE_VOICE))
+        self.edge_voice.pack(fill="x")
+        self.edge_voice_hint = ttk.Label(frame, text=EDGE_VOICES.get(self.edge_voice.get(), ""), foreground="#555555")
+        self.edge_voice_hint.pack(anchor="w")
+        self.edge_voice.bind(
+            "<<ComboboxSelected>>",
+            lambda _event: self.edge_voice_hint.configure(text=EDGE_VOICES.get(self.edge_voice.get(), "")),
+        )
+        ttk.Label(frame, text="Offline voice hint (for example: David or Mark)").pack(anchor="w", pady=(12, 2))
         self.tts_voice = ttk.Entry(frame)
         self.tts_voice.insert(0, values.get("tts_voice", "david"))
         self.tts_voice.pack(fill="x")
@@ -180,6 +200,8 @@ class SettingsWindow(tk.Toplevel):
             "hands_free_enabled": self.hands_free.get(),
             "tts_voice": self.tts_voice.get().strip() or "david",
             "tts_rate": int(self.tts_rate.get()),
+            "tts_engine": self.tts_engine.get().strip() or "edge",
+            "edge_voice": self.edge_voice.get().strip() or DEFAULT_EDGE_VOICE,
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)

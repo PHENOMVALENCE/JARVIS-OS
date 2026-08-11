@@ -32,18 +32,103 @@ def prepare_for_speech(text: str) -> str:
     return f"{value}." if value and value[-1] not in ".!?" else value
 
 
+DEFAULT_EDGE_VOICE = "en-GB-RyanNeural"
+
+EDGE_VOICES = {
+    "en-GB-RyanNeural": "British male — closest to the J.A.R.V.I.S character",
+    "en-GB-ThomasNeural": "British male, softer and slower",
+    "en-US-GuyNeural": "American male, warm and conversational",
+    "en-US-ChristopherNeural": "American male, deeper and calmer",
+    "en-GB-SoniaNeural": "British female",
+    "en-US-JennyNeural": "American female, conversational",
+}
+
+
+class EdgeSpeech:
+    """Microsoft Edge neural voices: natural sounding, free, and no API key.
+
+    Synthesis needs an internet connection, so callers fall back to SAPI offline.
+    """
+
+    def __init__(self, voice: str = DEFAULT_EDGE_VOICE, rate: int = 178, volume: float = 1.0):
+        self.voice = (voice or DEFAULT_EDGE_VOICE).strip() or DEFAULT_EDGE_VOICE
+        self.rate_percent = self.rate_to_percent(rate)
+        self.volume = max(0.0, min(1.0, float(volume)))
+        self._mixer = None
+
+    @staticmethod
+    def rate_to_percent(rate: int) -> str:
+        """Map a pyttsx3 words-per-minute rate onto Edge's relative cadence."""
+        percent = max(-50, min(50, round((int(rate) - 200) / 2)))
+        return f"{percent:+d}%"
+
+    def synthesize(self, text: str) -> bytes:
+        import asyncio
+
+        import edge_tts
+
+        async def collect() -> bytes:
+            audio = bytearray()
+            stream = edge_tts.Communicate(text, self.voice, rate=self.rate_percent).stream()
+            async for chunk in stream:
+                if chunk["type"] == "audio":
+                    audio.extend(chunk["data"])
+            return bytes(audio)
+
+        return asyncio.run(collect())
+
+    def play(self, payload: bytes) -> None:
+        import io
+        import os
+
+        os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        import pygame
+
+        if self._mixer is None:
+            pygame.mixer.init()
+            self._mixer = pygame.mixer
+        self._mixer.music.load(io.BytesIO(payload))
+        self._mixer.music.set_volume(self.volume)
+        self._mixer.music.play()
+        while self._mixer.music.get_busy():
+            time.sleep(0.05)
+
+    def say(self, text: str) -> None:
+        payload = self.synthesize(text)
+        if not payload:
+            raise RuntimeError("Edge TTS returned no audio.")
+        self.play(payload)
+
+    def stop(self) -> None:
+        if self._mixer is not None:
+            self._mixer.music.stop()
+
+
 class SpeechEngine:
-    """Thread-safe queued text-to-speech with a preferred Windows male voice."""
+    """Thread-safe queued text-to-speech, preferring a natural neural voice."""
 
     MALE_HINTS = ("david", "mark", "guy", "male")
+    MAX_EDGE_FAILURES = 3
 
-    def __init__(self, rate: int = 178, volume: float = 1.0, voice_hint: str = ""):
+    def __init__(
+        self,
+        rate: int = 178,
+        volume: float = 1.0,
+        voice_hint: str = "",
+        engine: str = "edge",
+        edge_voice: str = DEFAULT_EDGE_VOICE,
+    ):
         self.rate = max(100, min(260, int(rate)))
         self.volume = max(0.0, min(1.0, float(volume)))
         self.voice_hint = voice_hint.strip().lower()
+        self.engine_name = (engine or "edge").strip().lower()
+        self.edge_voice = edge_voice or DEFAULT_EDGE_VOICE
         self.queue: queue.Queue[str | None] = queue.Queue()
         self.speaking = threading.Event()
         self._thread: threading.Thread | None = None
+        self._edge: EdgeSpeech | None = None
+        self._windows = None
+        self._edge_failures = 0
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -59,6 +144,21 @@ class SpeechEngine:
     def stop(self) -> None:
         self.queue.put(None)
 
+    def silence(self) -> None:
+        """Drop queued speech and cut off anything already playing."""
+        while True:
+            try:
+                self.queue.get_nowait()
+            except queue.Empty:
+                break
+        if self._edge is not None:
+            self._edge.stop()
+        if self._windows is not None:
+            try:
+                self._windows.stop()
+            except Exception:
+                self._windows = None
+
     def _select_voice(self, engine) -> None:
         voices = list(engine.getProperty("voices") or [])
         hints = (self.voice_hint, *self.MALE_HINTS) if self.voice_hint else self.MALE_HINTS
@@ -69,22 +169,43 @@ class SpeechEngine:
                     engine.setProperty("voice", voice.id)
                     return
 
-    def _run(self) -> None:
-        engine = None
-        while (text := self.queue.get()) is not None:
-            try:
-                if engine is None:
-                    import pyttsx3
+    def _speak_windows(self, text: str) -> None:
+        if self._windows is None:
+            import pyttsx3
 
-                    engine = pyttsx3.init()
-                    self._select_voice(engine)
-                    engine.setProperty("rate", self.rate)
-                    engine.setProperty("volume", self.volume)
-                self.speaking.set()
-                engine.say(text)
-                engine.runAndWait()
+            engine = pyttsx3.init()
+            self._select_voice(engine)
+            engine.setProperty("rate", self.rate)
+            engine.setProperty("volume", self.volume)
+            self._windows = engine
+        self._windows.say(text)
+        self._windows.runAndWait()
+
+    def _speak_edge(self, text: str) -> None:
+        if self._edge is None:
+            self._edge = EdgeSpeech(self.edge_voice, self.rate, self.volume)
+        self._edge.say(text)
+
+    def speak_now(self, text: str) -> None:
+        """Speak once, falling back to the offline Windows voice when Edge fails."""
+        if self.engine_name == "edge" and self._edge_failures < self.MAX_EDGE_FAILURES:
+            try:
+                self._speak_edge(text)
+                self._edge_failures = 0
+                return
             except Exception:
-                engine = None
+                # Usually no internet connection. Retry a few times, then stay on SAPI.
+                self._edge_failures += 1
+                self._edge = None
+        self._speak_windows(text)
+
+    def _run(self) -> None:
+        while (text := self.queue.get()) is not None:
+            self.speaking.set()
+            try:
+                self.speak_now(text)
+            except Exception:
+                self._windows = None
             finally:
                 self.speaking.clear()
 
