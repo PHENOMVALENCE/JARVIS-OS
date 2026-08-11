@@ -178,6 +178,20 @@ class VoiceInputTests(unittest.TestCase):
         self.assertEqual(config.energy, 220)
         self.assertFalse(config.extended_listening)
 
+    def test_defaults_to_the_quantised_recognition_backend(self):
+        self.assertEqual(VoiceConfig().implementation, "faster_whisper")
+        settings = Mock()
+        settings.get.side_effect = lambda key, default=None: (
+            "whisper" if key == "stt_backend" else default
+        )
+        self.assertEqual(VoiceConfig.from_settings(settings).implementation, "whisper")
+
+    def test_changing_the_backend_rebuilds_the_microphone(self):
+        voice = VoiceInput(VoiceConfig())
+        before = voice._signature()
+        voice.config = VoiceConfig(implementation="whisper")
+        self.assertNotEqual(before, voice._signature())
+
     def test_changing_settings_rebuilds_the_microphone(self):
         voice = VoiceInput(VoiceConfig(energy=180))
         first = voice._signature()

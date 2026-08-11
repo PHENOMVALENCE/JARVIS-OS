@@ -255,12 +255,17 @@ class VoiceConfig:
     hallucinate_threshold: int = 140
     extended_listening: bool = True
     mic_index: int | None = None
+    # faster_whisper runs the same models through CTranslate2 with int8 weights,
+    # which matters a lot on a CPU-only machine. whisper_mic falls back to the
+    # reference implementation on its own if the library is missing.
+    implementation: str = "faster_whisper"
 
     @classmethod
     def from_settings(cls, settings_repo=None, fallback_model: str = "base") -> "VoiceConfig":
         if not settings_repo:
             return cls(model=fallback_model)
         return cls(
+            implementation=str(settings_repo.get("stt_backend", "faster_whisper")),
             model=str(settings_repo.get("whisper_model", fallback_model)),
             energy=int(settings_repo.get("mic_energy", 180)),
             pause=float(settings_repo.get("mic_pause", 1.25)),
@@ -289,7 +294,7 @@ class VoiceInput:
         config = self.config
         return (
             config.model, config.energy, config.pause, config.dynamic_energy,
-            config.hallucinate_threshold, config.mic_index,
+            config.hallucinate_threshold, config.mic_index, config.implementation,
         )
 
     def _ensure_microphone(self) -> None:
@@ -305,7 +310,7 @@ class VoiceInput:
             "energy": config.energy, "pause": config.pause,
             "dynamic_energy": config.dynamic_energy, "save_file": False,
             "device": "cuda" if torch.cuda.is_available() else "cpu",
-            "implementation": "whisper",
+            "implementation": config.implementation,
             "hallucinate_threshold": config.hallucinate_threshold,
         }
         if config.mic_index is not None:
