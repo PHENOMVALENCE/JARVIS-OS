@@ -28,10 +28,16 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
-Name: "startup"; Description: "Start J.A.R.V.I.S when I sign in"
+; Ticked by default: the wake word only works while J.A.R.V.I.S is running, so
+; a fresh install that does not start with Windows cannot answer "Hey Jarvis".
+Name: "startup"; Description: "Start J.A.R.V.I.S when I sign in (needed for ""Hey Jarvis"")"; GroupDescription: "Hands-free:"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "JARVIS Mark 7"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: startup; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "JARVIS"; ValueData: """{app}\{#MyAppExeName}"""; Tasks: startup; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch J.A.R.V.I.S"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch J.A.R.V.I.S and finish setup"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+; Downloaded voice and wake word models live beside the app.
+Type: filesandordirs; Name: "{app}\models"

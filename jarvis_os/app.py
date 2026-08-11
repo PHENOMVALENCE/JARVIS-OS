@@ -5,7 +5,6 @@ from __future__ import annotations
 import queue
 import threading
 import tkinter as tk
-import math
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, scrolledtext
@@ -23,22 +22,15 @@ from .workflow_ui import WorkflowWindow
 from .knowledge import KnowledgeIndex
 from .proactive import ProactiveScheduler
 from .user_presence import SecuritySession
-from .setup_ui import FirstRunWizard
+from .setup_ui import SetupWizard
 from .updates import UpdateChecker
 from . import __version__
 from .wake_word import make_wake_word
 from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, HandsFreeListener, SentenceBuffer, SpeechEngine
-
-
-BG = "#070b12"
-PANEL = "#0b1421"
-PANEL_2 = "#101d2d"
-ACCENT = "#36d7ff"
-ACCENT_2 = "#806bff"
-TEXT = "#e7f8ff"
-MUTED = "#8aa7b5"
-SUCCESS = "#63f5a5"
-WARNING = "#ffbf69"
+from .audio_level import MicrophoneLevel
+from .orb import OrbCaption, VoiceOrb
+from .theme import Palette, Space, Type, state_style
+from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
 
 
 class JarvisApp:
@@ -92,6 +84,9 @@ class JarvisApp:
         )
         self._streaming = False
         self._sentences = SentenceBuffer()
+        self._pulse = 0.0
+        self._state = "idle"
+        self.mic_level = MicrophoneLevel(self._on_level)
         self.hands_free = HandsFreeListener(
             self._listen_once,
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
@@ -105,6 +100,8 @@ class JarvisApp:
         self._build_ui()
         threading.Thread(target=self._worker, daemon=True, name="jarvis-actions").start()
         self.speech_engine.start()
+        self.orb.start()
+        self.mic_level.start()
         self._start_tray()
         self._start_emergency_hotkey()
         self._start_wake_word()
@@ -113,199 +110,291 @@ class JarvisApp:
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
         if not self.settings_repo.get("first_run_complete", False):
-            self.root.after(250, lambda: FirstRunWizard(self.root, self.settings_repo))
+            self.root.after(250, lambda: SetupWizard(
+                self.root, self.settings_repo, self.settings.project_root, self.speech_engine
+            ))
         threading.Thread(target=self._check_updates, daemon=True, name="jarvis-updates").start()
         threading.Thread(target=self._warm_model, daemon=True, name="jarvis-warmup").start()
 
     def _configure_window(self) -> None:
-        self.root.title("J.A.R.V.I.S — Mark 7 Command Center")
-        width = min(1480, max(1180, self.root.winfo_screenwidth() - 160))
-        height = min(940, max(760, self.root.winfo_screenheight() - 120))
-        self.root.geometry(f"{width}x{height}+60+40")
-        self.root.minsize(1040, 680)
-        self.root.configure(bg=BG)
+        self.root.title("J.A.R.V.I.S")
+        # Fit the screen first. Preferring a large window over the available
+        # space produced a window taller than the display on 1280x800 laptops,
+        # which quietly cut off the input bar.
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        width = max(980, min(1520, screen_width - 80))
+        height = max(640, min(960, screen_height - 90))
+        x = max(0, (screen_width - width) // 2)
+        y = max(0, (screen_height - height) // 3)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+        self.root.minsize(min(980, screen_width - 40), min(640, screen_height - 60))
+        self.root.configure(bg=Palette.BASE)
         minimize = self.settings_repo.get("minimize_to_tray", self.settings.minimize_to_tray)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window if minimize else self.exit_app)
 
     def _build_ui(self) -> None:
-        top = tk.Frame(self.root, bg="#080e18", height=74, padx=28, pady=14)
-        top.pack(fill="x")
-        top.pack_propagate(False)
-        brand = tk.Frame(top, bg="#080e18")
-        brand.pack(side="left", fill="y")
-        tk.Label(brand, text="J.A.R.V.I.S", fg=ACCENT, bg="#080e18", font=("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(brand, text="JUST A RATHER VERY INTELLIGENT SYSTEM  /  MARK 7", fg=MUTED, bg="#080e18", font=("Consolas", 8)).pack(anchor="w")
-        self.clock = tk.Label(top, fg=MUTED, bg="#080e18", font=("Consolas", 10))
-        self.clock.pack(side="right", padx=(24, 0))
-        self.status = tk.Label(top, text="● READY", fg=SUCCESS, bg="#080e18", font=("Segoe UI Semibold", 10), padx=14)
-        self.status.pack(side="right")
-        for label, command in (("SETTINGS", self.open_settings), ("WORKFLOWS", self.open_workflows)):
-            tk.Button(top, text=label, command=command, bg="#080e18", fg=MUTED,
-                      activebackground=PANEL_2, activeforeground=TEXT, relief="flat",
-                      font=("Segoe UI Semibold", 9), cursor="hand2", padx=12).pack(side="right", padx=3)
-
-        body = tk.Frame(self.root, bg=BG, padx=18, pady=16)
+        self._build_header()
+        body = tk.Frame(self.root, bg=Palette.BASE, padx=Space.LG, pady=Space.MD)
         body.pack(fill="both", expand=True)
         body.grid_rowconfigure(0, weight=1)
         body.grid_columnconfigure(1, weight=1)
+        self._build_left_rail(body)
+        self._build_center(body)
+        self._build_right_rail(body)
+        self._update_clock()
+        self._animate()
 
-        left = tk.Frame(body, bg=PANEL, width=224, padx=16, pady=16, highlightthickness=1, highlightbackground="#172a3d")
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        left.grid_propagate(False)
-        tk.Label(left, text="VOICE CORE", bg=PANEL, fg=MUTED, font=("Consolas", 9)).pack(anchor="w")
-        self.voice_mode_label = tk.Label(left, text="HANDS-FREE ONLINE", bg=PANEL, fg=SUCCESS, font=("Segoe UI Semibold", 10))
-        self.voice_mode_label.pack(anchor="w", pady=(18, 4))
-        tk.Label(left, text="Jarvis listens after you finish speaking and pauses while replying.",
-                 bg=PANEL, fg=MUTED, justify="left", wraplength=185,
-                 font=("Segoe UI", 9)).pack(anchor="w", pady=(0, 10))
-        self.voice_toggle = tk.Button(left, text="PAUSE LISTENING", command=self.toggle_hands_free,
-                                      bg="#15334a", fg=ACCENT, activebackground="#204963",
-                                      activeforeground=TEXT, relief="flat", cursor="hand2",
-                                      font=("Segoe UI Semibold", 9), pady=9)
-        self.voice_toggle.pack(fill="x", pady=(4, 18))
-        self._metric(left, "VOICE ENGINE", str(self.settings_repo.get("whisper_model", "base")).upper())
-        self._metric(left, "LANGUAGE MODEL", str(self.settings_repo.get("ollama_model", "gemma2:2b")))
-        self._metric(left, "SECURITY", "PERMISSION GATED")
-        self._metric(left, "PRIVACY", "ACTIVE" if self.settings_repo.get("privacy_mode", False) else "STANDARD")
+    def _build_header(self) -> None:
+        top = tk.Frame(self.root, bg=Palette.VOID, height=84, padx=Space.XL, pady=Space.SM)
+        top.pack(fill="x")
+        top.pack_propagate(False)
 
-        center = tk.Frame(body, bg=BG)
+        brand = tk.Frame(top, bg=Palette.VOID)
+        brand.pack(side="left", fill="y")
+        mark = tk.Canvas(brand, width=34, height=34, bg=Palette.VOID, highlightthickness=0)
+        mark.pack(side="left", padx=(0, Space.MD))
+        mark.create_oval(3, 3, 31, 31, outline=Palette.ACCENT, width=2)
+        mark.create_oval(10, 10, 24, 24, fill=Palette.ACCENT, outline="")
+        words = tk.Frame(brand, bg=Palette.VOID)
+        words.pack(side="left", fill="y")
+        tk.Label(words, text="J.A.R.V.I.S", fg=Palette.TEXT, bg=Palette.VOID,
+                 font=Type.BRAND).pack(anchor="w")
+        tk.Label(words, text="MARK 7  ·  LOCAL FIRST", fg=Palette.TEXT_FAINT, bg=Palette.VOID,
+                 font=Type.MONO_SMALL).pack(anchor="w")
+
+        self.clock = tk.Label(top, fg=Palette.TEXT_MUTED, bg=Palette.VOID, font=Type.MONO)
+        self.clock.pack(side="right", padx=(Space.LG, 0))
+        for label, command in (("WORKFLOWS", self.open_workflows), ("SETTINGS", self.open_settings)):
+            Button(top, label, command, style="quiet", height=32, width=104).pack(
+                side="right", padx=Space.XS
+            )
+        self.status_chip = StatusChip(top)
+        self.status_chip.pack(side="right", padx=(0, Space.MD))
+
+    def _build_left_rail(self, body: tk.Frame) -> None:
+        rail = tk.Frame(body, bg=Palette.BASE, width=252)
+        rail.grid(row=0, column=0, sticky="nsew", padx=(0, Space.MD))
+        rail.grid_propagate(False)
+
+        voice = Card(rail, glow=Palette.ACCENT, padding=Space.MD)
+        voice.pack(fill="x")
+        tk.Label(voice.body, text="VOICE", bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
+                 font=Type.MONO_SMALL).pack(anchor="w")
+        self.voice_mode_label = tk.Label(voice.body, text="HANDS-FREE ON", bg=Palette.SURFACE,
+                                         fg=Palette.SUCCESS, font=Type.LABEL)
+        self.voice_mode_label.pack(anchor="w", pady=(Space.SM, Space.SM))
+        self.level_meter = LevelMeter(voice.body, height=24)
+        self.level_meter.pack(fill="x", pady=(0, Space.XS))
+        self.mic_hint = tk.Label(voice.body, text="Waiting for microphone", bg=Palette.SURFACE,
+                                 fg=Palette.TEXT_FAINT, font=Type.CAPTION, wraplength=200,
+                                 justify="left")
+        self.mic_hint.pack(anchor="w", pady=(0, Space.SM))
+        self.voice_toggle = Button(voice.body, "PAUSE LISTENING", self.toggle_hands_free,
+                                   style="ghost", height=36)
+        self.voice_toggle.pack(fill="x", pady=(Space.XS, 0))
+
+        system = Card(rail, padding=Space.MD)
+        system.pack(fill="x", pady=(Space.MD, 0))
+        tk.Label(system.body, text="SYSTEM", bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
+                 font=Type.MONO_SMALL).pack(anchor="w", pady=(0, Space.SM))
+        self.metrics = {}
+        for key, label, value in (
+            ("model", "LANGUAGE MODEL", str(self.settings_repo.get("ollama_model", "gemma2:2b"))),
+            ("voice", "SPEECH ENGINE", str(self.settings_repo.get("tts_engine", "edge")).upper()),
+            ("hearing", "RECOGNITION", str(self.settings_repo.get("whisper_model", "base")).upper()),
+            ("privacy", "PRIVACY",
+             "PRIVATE MODE" if self.settings_repo.get("privacy_mode", False) else "STANDARD"),
+        ):
+            row = MetricRow(system.body, label, value)
+            row.pack(fill="x", pady=(0, Space.SM))
+            self.metrics[key] = row
+
+    def _build_center(self, body: tk.Frame) -> None:
+        center = tk.Frame(body, bg=Palette.BASE)
         center.grid(row=0, column=1, sticky="nsew")
-        center.grid_rowconfigure(2, weight=1)
+        center.grid_rowconfigure(1, weight=1)
         center.grid_columnconfigure(0, weight=1)
-        section = tk.Frame(center, bg=BG)
-        section.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        tk.Label(section, text="CONVERSATION STREAM", bg=BG, fg=TEXT, font=("Segoe UI Semibold", 12)).pack(side="left")
-        tk.Label(section, text="LOCAL-FIRST • LIVE CONTROL • SOURCE-GROUNDED", bg=BG, fg=MUTED, font=("Consolas", 8)).pack(side="right")
 
-        voice_stage = tk.Frame(center, bg=PANEL, height=174, highlightthickness=1, highlightbackground="#172a3d")
-        voice_stage.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-        voice_stage.grid_propagate(False)
-        voice_stage.grid_columnconfigure(0, weight=1)
-        self.orb = tk.Canvas(voice_stage, width=300, height=166, bg=PANEL, highlightthickness=0)
-        self.orb.grid(row=0, column=0)
-        self._orb_phase = 0.0
-        tk.Label(voice_stage, text="LIVE VOICE", bg=PANEL, fg=MUTED,
-                 font=("Consolas", 8)).place(relx=0.5, rely=0.08, anchor="center")
+        stage = Card(center, fill=Palette.SURFACE, padding=Space.MD)
+        stage.grid(row=0, column=0, sticky="ew", pady=(0, Space.MD))
+        inner = tk.Frame(stage.body, bg=Palette.SURFACE)
+        inner.pack(pady=Space.SM)
+        self.orb = VoiceOrb(inner, size=178, background=Palette.SURFACE)
+        self.orb.pack()
+        self.orb_caption = OrbCaption(inner)
+        self.orb_caption.pack(pady=(Space.SM, Space.XS))
 
+        conversation = Card(center, padding=0)
+        conversation.grid(row=1, column=0, sticky="nsew")
         self.transcript = scrolledtext.ScrolledText(
-            center, wrap="word", bg=PANEL, fg=TEXT, insertbackground=TEXT, selectbackground="#214860",
-            relief="flat", padx=24, pady=20, font=("Segoe UI", 11), state="disabled",
-            highlightthickness=1, highlightbackground="#172a3d",
+            conversation.body, wrap="word", bg=Palette.SURFACE, fg=Palette.TEXT,
+            insertbackground=Palette.ACCENT, selectbackground=Palette.ACCENT_DEEP,
+            relief="flat", padx=Space.XL, pady=Space.LG, font=Type.BODY, state="disabled",
+            highlightthickness=0, bd=0, spacing1=2, spacing3=4,
+            # A text widget requests 80x24 characters by default, which would
+            # crowd out the side rails and the input bar. Ask for very little
+            # and let the grid weights hand it the space that is left.
+            width=20, height=6,
         )
-        self.transcript.grid(row=2, column=0, sticky="nsew")
-        self.transcript.tag_configure("name_user", foreground="#b5c5d1", font=("Segoe UI Semibold", 9), spacing1=8)
-        self.transcript.tag_configure("name_jarvis", foreground=ACCENT, font=("Segoe UI Semibold", 9), spacing1=8)
-        self.transcript.tag_configure("body", foreground=TEXT, spacing3=12, lmargin1=4, lmargin2=4)
-        self.transcript.tag_configure("detail", foreground=MUTED, lmargin1=18, lmargin2=18, spacing3=3)
+        self.transcript.pack(fill="both", expand=True, padx=2, pady=2)
+        self.transcript.tag_configure("name_user", foreground=Palette.TEXT_MUTED,
+                                      font=Type.MONO_SMALL, spacing1=Space.MD)
+        self.transcript.tag_configure("name_jarvis", foreground=Palette.ACCENT,
+                                      font=Type.MONO_SMALL, spacing1=Space.MD)
+        self.transcript.tag_configure("body", foreground=Palette.TEXT, spacing3=Space.SM,
+                                      lmargin1=2, lmargin2=2)
+        self.transcript.tag_configure("detail", foreground=Palette.TEXT_MUTED,
+                                      font=Type.CAPTION, lmargin1=Space.MD, lmargin2=Space.LG)
+        self.transcript.tag_configure("system", foreground=Palette.TEXT_FAINT, font=Type.CAPTION)
 
-        quick = tk.Frame(center, bg=BG, pady=9)
-        quick.grid(row=3, column=0, sticky="ew")
-        for label, command in (("WEB RESEARCH", "Research "), ("OPEN APP", "Open "),
-                               ("FIND FILE", "Find file "), ("WORK MODE", "Start work mode")):
-            tk.Button(quick, text=label, command=lambda value=command: self._quick_prompt(value),
-                      bg=PANEL_2, fg=MUTED, activebackground="#1b3046", activeforeground=TEXT,
-                      relief="flat", font=("Consolas", 8), padx=10, pady=6, cursor="hand2").pack(side="left", padx=(0, 7))
+        quick = tk.Frame(center, bg=Palette.BASE)
+        quick.grid(row=2, column=0, sticky="ew", pady=(Space.MD, Space.SM))
+        for label, value in (("RESEARCH", "Research "), ("WEATHER", "What's the weather"),
+                             ("OPEN APP", "Open "), ("FIND FILE", "Find "),
+                             ("READ SCREEN", "Read the screen")):
+            Button(quick, label, lambda v=value: self._quick_prompt(v),
+                   style="ghost", height=32, width=len(label) * 8 + 28).pack(
+                side="left", padx=(0, Space.SM)
+            )
 
-        input_panel = tk.Frame(center, bg=PANEL_2, padx=12, pady=10, highlightthickness=1, highlightbackground="#23415a")
-        input_panel.grid(row=4, column=0, sticky="ew")
-        self.entry = tk.Entry(
-            input_panel, bg=PANEL_2, fg=TEXT, insertbackground=ACCENT, relief="flat",
-            font=("Segoe UI", 12), bd=0,
-        )
-        self.entry.pack(side="left", fill="x", expand=True, ipady=9, padx=(5, 10))
+        bar = Card(center, fill=Palette.SURFACE_INPUT, border=Palette.BORDER_BRIGHT,
+                   padding=Space.SM, radius=12)
+        bar.grid(row=3, column=0, sticky="ew")
+        self.entry = tk.Entry(bar.body, bg=Palette.SURFACE_INPUT, fg=Palette.TEXT,
+                              insertbackground=Palette.ACCENT, relief="flat",
+                              font=Type.BODY, bd=0)
+        self.entry.pack(side="left", fill="x", expand=True, ipady=10, padx=(Space.MD, Space.MD))
         self.entry.bind("<Return>", self.submit)
         self.entry.focus_set()
         self.root.bind("<Escape>", self.stop_speaking)
-        tk.Button(
-            input_panel, text="STOP", command=self.stop_speaking, bg="#3a1c28", fg="#ff9aa8",
-            activebackground="#52212f", activeforeground=TEXT, relief="flat",
-            font=("Segoe UI Semibold", 9), padx=13, pady=9, cursor="hand2",
-        ).pack(side="left", padx=(0, 8))
-        tk.Button(
-            input_panel, text="MIC", command=self.listen, bg="#183149", fg=ACCENT,
-            activebackground="#244866", activeforeground=TEXT, relief="flat",
-            font=("Segoe UI Semibold", 9), padx=15, pady=9, cursor="hand2",
-        ).pack(side="left", padx=(0, 8))
-        tk.Button(
-            input_panel, text="SEND", command=self.submit, bg=ACCENT, fg=BG,
-            activebackground="#7ce7ff", relief="flat", font=("Segoe UI Semibold", 9),
-            padx=18, pady=9, cursor="hand2",
-        ).pack(side="left")
+        Button(bar.body, "SEND", self.submit, style="primary", height=38, width=84).pack(
+            side="right", padx=(Space.SM, 0)
+        )
+        Button(bar.body, "MIC", self.listen, style="ghost", height=38, width=68).pack(side="right")
+        Button(bar.body, "STOP", self.stop_speaking, style="danger", height=38, width=68).pack(
+            side="right", padx=(0, Space.SM)
+        )
 
-        right = tk.Frame(body, bg=PANEL, width=244, padx=16, pady=16, highlightthickness=1, highlightbackground="#172a3d")
-        right.grid(row=0, column=2, sticky="nsew", padx=(12, 0))
-        right.grid_propagate(False)
-        tk.Label(right, text="CAPABILITY MATRIX", bg=PANEL, fg=MUTED, font=("Consolas", 9)).pack(anchor="w", pady=(0, 12))
-        for title, subtitle, color in (
-            ("PC CONTROL", "Apps • files • windows", SUCCESS),
-            ("LIVE RESEARCH", "Web sources • answers", ACCENT),
-            ("LOCAL KNOWLEDGE", "Documents • citations", ACCENT_2),
-            ("AUTOMATION", "Workflows • schedules", WARNING),
-            ("VISION", "Screen-aware assistance", "#ff83b6"),
+    def _build_right_rail(self, body: tk.Frame) -> None:
+        rail = tk.Frame(body, bg=Palette.BASE, width=258)
+        rail.grid(row=0, column=2, sticky="nsew", padx=(Space.MD, 0))
+        rail.grid_propagate(False)
+
+        capability = Card(rail, padding=Space.MD)
+        capability.pack(fill="x")
+        tk.Label(capability.body, text="CAPABILITIES", bg=Palette.SURFACE,
+                 fg=Palette.TEXT_FAINT, font=Type.MONO_SMALL).pack(anchor="w", pady=(0, Space.SM))
+        for title, subtitle, colour in (
+            ("PC control", "Apps, files, windows", Palette.SUCCESS),
+            ("Live research", "Cited web answers", Palette.ACCENT),
+            ("Weather", "Free, no API key", Palette.ACCENT),
+            ("Documents", "Local semantic search", Palette.VIOLET),
+            ("Screen reading", "On-device OCR", Palette.WARNING),
         ):
-            self._capability(right, title, subtitle, color)
-        tk.Frame(right, bg="#1b3146", height=1).pack(fill="x", pady=14)
-        tk.Label(right, text="ACTIVE SESSION", bg=PANEL, fg=MUTED, font=("Consolas", 9)).pack(anchor="w")
-        self.session_detail = tk.Label(right, text="Awaiting command\nVoice channel initializing", justify="left",
-                                       bg=PANEL, fg=TEXT, font=("Segoe UI", 9), wraplength=205)
-        self.session_detail.pack(anchor="w", pady=(8, 0))
-        tk.Label(right, text="Emergency stop\nCTRL + ALT + J", justify="left", bg=PANEL, fg="#ff7185",
-                 font=("Consolas", 9)).pack(anchor="w", side="bottom")
+            self._capability(capability.body, title, subtitle, colour)
 
-        self._update_clock()
-        self._animate_orb()
+        session = Card(rail, padding=Space.MD)
+        session.pack(fill="x", pady=(Space.MD, 0))
+        tk.Label(session.body, text="SESSION", bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
+                 font=Type.MONO_SMALL).pack(anchor="w")
+        self.session_detail = tk.Label(session.body, text="Awaiting your first request",
+                                       justify="left", bg=Palette.SURFACE, fg=Palette.TEXT_SOFT,
+                                       font=Type.CAPTION, wraplength=210)
+        self.session_detail.pack(anchor="w", pady=(Space.SM, 0))
+
+        shortcuts = Card(rail, padding=Space.MD)
+        shortcuts.pack(fill="x", pady=(Space.MD, 0))
+        tk.Label(shortcuts.body, text="SHORTCUTS", bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
+                 font=Type.MONO_SMALL).pack(anchor="w", pady=(0, Space.SM))
+        for keys, meaning in (("Hey Jarvis", "wake by voice"), ("Esc", "stop speaking"),
+                              ("Ctrl+Alt+J", "emergency stop")):
+            row = tk.Frame(shortcuts.body, bg=Palette.SURFACE)
+            row.pack(fill="x", pady=2)
+            tk.Label(row, text=keys, bg=Palette.SURFACE, fg=Palette.ACCENT,
+                     font=Type.MONO_SMALL).pack(side="left")
+            tk.Label(row, text=meaning, bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
+                     font=Type.CAPTION).pack(side="right")
 
     @staticmethod
-    def _metric(parent, title: str, value: str) -> None:
-        panel = tk.Frame(parent, bg=PANEL_2, padx=10, pady=8)
-        panel.pack(fill="x", pady=4)
-        tk.Label(panel, text=title, bg=PANEL_2, fg=MUTED, font=("Consolas", 7)).pack(anchor="w")
-        tk.Label(panel, text=value, bg=PANEL_2, fg=TEXT, font=("Segoe UI Semibold", 8), wraplength=170).pack(anchor="w")
-
-    @staticmethod
-    def _capability(parent, title: str, subtitle: str, color: str) -> None:
-        panel = tk.Frame(parent, bg=PANEL_2, padx=10, pady=9)
-        panel.pack(fill="x", pady=4)
-        tk.Label(panel, text="●", bg=PANEL_2, fg=color, font=("Segoe UI", 9)).pack(side="left", padx=(0, 8))
-        labels = tk.Frame(panel, bg=PANEL_2)
-        labels.pack(side="left")
-        tk.Label(labels, text=title, bg=PANEL_2, fg=TEXT, font=("Segoe UI Semibold", 8)).pack(anchor="w")
-        tk.Label(labels, text=subtitle, bg=PANEL_2, fg=MUTED, font=("Segoe UI", 8)).pack(anchor="w")
+    def _capability(parent, title: str, subtitle: str, colour: str) -> None:
+        row = tk.Frame(parent, bg=Palette.SURFACE)
+        row.pack(fill="x", pady=3)
+        dot = tk.Canvas(row, width=10, height=10, bg=Palette.SURFACE, highlightthickness=0)
+        dot.pack(side="left", padx=(0, Space.SM), pady=(4, 0), anchor="n")
+        dot.create_oval(2, 2, 8, 8, fill=colour, outline="")
+        text = tk.Frame(row, bg=Palette.SURFACE)
+        text.pack(side="left", fill="x", expand=True)
+        tk.Label(text, text=title, bg=Palette.SURFACE, fg=Palette.TEXT_SOFT,
+                 font=Type.LABEL).pack(anchor="w")
+        tk.Label(text, text=subtitle, bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
+                 font=Type.CAPTION).pack(anchor="w")
 
     def _quick_prompt(self, value: str) -> None:
         self.entry.delete(0, "end")
         self.entry.insert(0, value)
         self.entry.focus_set()
-        if value == "Start work mode":
+        if not value.endswith(" "):
             self.submit()
 
     def _update_clock(self) -> None:
         if self._closing:
             return
-        self.clock.configure(text=datetime.now().strftime("%A  %H:%M:%S"))
+        self.clock.configure(text=datetime.now().strftime("%a %d %b  ·  %H:%M"))
         self.root.after(1000, self._update_clock)
 
-    def _animate_orb(self) -> None:
+    def _animate(self) -> None:
+        """Drive the chip pulse. The orb runs its own loop at its own rate."""
         if self._closing:
             return
-        self.orb.delete("all")
-        self._orb_phase += 0.10
-        active = self.hands_free.enabled.is_set()
-        color = ACCENT if active else "#466477"
-        cx, cy = 150, 92
-        for index in range(4):
-            pulse = math.sin(self._orb_phase + index * 0.8) * 4
-            radius = 62 - index * 11 + pulse
-            self.orb.create_oval(cx-radius, cy-radius, cx+radius, cy+radius,
-                                 outline=color if index < 2 else ACCENT_2, width=2)
-        points = []
-        for index in range(48):
-            angle = index * math.tau / 48
-            radius = 34 + math.sin(self._orb_phase * 2 + index * 0.75) * (7 if active else 2)
-            points.extend((cx + math.cos(angle) * radius, cy + math.sin(angle) * radius))
-        self.orb.create_polygon(points, outline=color, fill="#0d2233", smooth=True, width=2)
-        self.orb.create_text(cx, cy, text="J7", fill=TEXT, font=("Consolas", 18, "bold"))
-        self.root.after(70, self._animate_orb)
+        self._pulse += 0.18
+        self.status_chip.pulse(self._pulse)
+        self._mic_ticks = getattr(self, "_mic_ticks", 0) + 1
+        if self._mic_ticks % 12 == 0:
+            self._refresh_mic_hint()
+        self.root.after(90, self._animate)
+
+    def _on_level(self, level: float) -> None:
+        """Called from the microphone thread; hop to the UI thread to draw."""
+        if self._closing:
+            return
+        try:
+            self.root.after(0, lambda: self._apply_level(level))
+        except (tk.TclError, RuntimeError):
+            # The window closed between the check and the schedule.
+            pass
+
+    def _apply_level(self, level: float) -> None:
+        if self._closing:
+            return
+        self.orb.set_level(level)
+        self.level_meter.set_level(level)
+
+    SESSION_NOTES = {
+        "idle": "Ready. Ask anything, or say “Hey Jarvis”.",
+        "listening": "Listening to you now.",
+        "working": "Carrying out your request.",
+        "thinking": "Working out an answer.",
+        "speaking": "Replying. Press Escape to interrupt.",
+        "paused": "Hands-free listening is paused.",
+        "stopped": "Emergency stop. Pending work was cleared.",
+        "error": "The last request did not complete.",
+    }
+
+    def set_state(self, state: str) -> None:
+        """Single place that moves the orb, chip, and caption together."""
+        self._state = state
+        label, colour = state_style(state)
+        self.status_chip.set_state(label, colour)
+        self.orb.set_state(state)
+        self.orb_caption.set_state(state)
+        if hasattr(self, "session_detail"):
+            self.session_detail.configure(
+                text=self.SESSION_NOTES.get(state, label.title()), fg=colour
+            )
+
+    def set_status(self, text: str, color: str = Palette.ACCENT) -> None:
+        self.set_state(text)
 
     def _write(self, text: str, tag: str) -> None:
         self.transcript.configure(state="normal")
@@ -328,10 +417,6 @@ class JarvisApp:
         self._write(text, "body")
         self.end_message(details)
 
-    def set_status(self, text: str, color: str = ACCENT) -> None:
-        self.status.configure(text=f"● {text.upper()}", fg=color)
-        if hasattr(self, "session_detail"):
-            self.session_detail.configure(text=f"{text.title()}\nSecure session active")
 
     def stop_speaking(self, _event=None) -> str:
         """Cut off the reply in progress. Interrupting should always be possible."""
@@ -344,7 +429,7 @@ class JarvisApp:
             self.stop_speaking()
             self.entry.delete(0, "end")
             self.add_message("YOU", text)
-            self.set_status("working")
+            self.set_state("working")
             self.work.put((text, False))
             self.security_session.touch()
         return "break"
@@ -354,7 +439,7 @@ class JarvisApp:
 
     def listen(self) -> None:
         self.stop_speaking()
-        self.set_status("listening")
+        self.set_state("listening")
         if self.voice is None:
             self.voice = self._make_voice_input()
         threading.Thread(target=self._listen_worker, daemon=True, name="jarvis-microphone").start()
@@ -370,11 +455,24 @@ class JarvisApp:
         if not hasattr(self, "voice_toggle"):
             return
         active = self.hands_free.enabled.is_set()
-        self.voice_toggle.configure(text="PAUSE LISTENING" if active else "ENABLE LISTENING")
+        self.voice_toggle.set_text("PAUSE LISTENING" if active else "ENABLE LISTENING")
         self.voice_mode_label.configure(
-            text="HANDS-FREE ONLINE" if active else "VOICE CHANNEL PAUSED",
-            fg=SUCCESS if active else MUTED,
+            text="HANDS-FREE ON" if active else "HANDS-FREE PAUSED",
+            fg=Palette.SUCCESS if active else Palette.TEXT_MUTED,
         )
+        self._refresh_mic_hint()
+
+    def _refresh_mic_hint(self) -> None:
+        """Say plainly whether the microphone is working, rather than failing quietly."""
+        if not hasattr(self, "mic_hint"):
+            return
+        if self.mic_level.available:
+            text, colour = "Microphone live", Palette.TEXT_MUTED
+        elif self.mic_level.error:
+            text, colour = f"No microphone: {self.mic_level.error[:60]}", Palette.WARNING
+        else:
+            text, colour = "Waiting for microphone", Palette.TEXT_FAINT
+        self.mic_hint.configure(text=text, fg=colour)
 
     def _listen_once(self) -> str:
         with self._voice_lock:
@@ -390,13 +488,13 @@ class JarvisApp:
             if text:
                 self.root.after(0, lambda: self._submit_voice(text))
             else:
-                self.root.after(0, lambda: self.set_status("no speech", MUTED))
+                self.root.after(0, lambda: self.set_state("idle"))
         except Exception as exc:
             self.root.after(0, lambda: self._show_error(f"Microphone error: {exc}"))
 
     def _submit_voice(self, text: str) -> None:
         self.add_message("YOU", text)
-        self.set_status("working")
+        self.set_state("working")
         self.work.put((text, True))
         self.security_session.touch()
 
@@ -422,7 +520,7 @@ class JarvisApp:
         if not self._streaming:
             self._streaming = True
             self.begin_message("J.A.R.V.I.S")
-            self.set_status("speaking", "#b78cff")
+            self.set_state("speaking")
         self._write(chunk, "body")
         if self._speaks():
             for sentence in self._sentences.push(chunk):
@@ -439,16 +537,16 @@ class JarvisApp:
             self.add_message("J.A.R.V.I.S", text, details)
             if self._speaks():
                 self.speech_engine.say(text)
-        self.set_status("ready", SUCCESS)
+        self.set_state("idle")
 
     def _voice_state(self, state: str) -> None:
         self._refresh_voice_controls()
         if state == "listening":
-            self.set_status("listening", ACCENT)
+            self.set_state("listening")
         elif state == "speaking":
-            self.set_status("speaking", "#b78cff")
+            self.set_state("speaking")
         elif state == "paused":
-            self.set_status("voice paused", MUTED)
+            self.set_state("paused")
         elif state.startswith("error:"):
             self._show_error(f"Hands-free microphone {state}")
 
@@ -474,7 +572,7 @@ class JarvisApp:
 
     def _show_error(self, message: str) -> None:
         self.add_message("J.A.R.V.I.S", message)
-        self.set_status("error", "#ff6b7a")
+        self.set_state("error")
 
     def _start_tray(self) -> None:
         if not self.settings_repo.get("minimize_to_tray", self.settings.minimize_to_tray):
@@ -522,7 +620,7 @@ class JarvisApp:
                 break
         self.security_session.lock()
         self.add_message("J.A.R.V.I.S", "Emergency stop activated. Pending work was cleared and sensitive actions are locked.")
-        self.set_status("stopped", "#ff6b7a")
+        self.set_state("stopped")
 
     def _warm_model(self) -> None:
         """Load the local model during startup so the first question is not slow."""
@@ -563,6 +661,8 @@ class JarvisApp:
         self._closing = True
         self.work.put(None)
         self.hands_free.stop()
+        self.orb.stop()
+        self.mic_level.stop()
         self.speech_engine.stop()
         if self.tray_icon:
             self.tray_icon.stop()

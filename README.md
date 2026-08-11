@@ -21,7 +21,17 @@ New Mark 7 capabilities:
 - Run `python Diagnose-Jarvis.py` to verify the installation.
 - Build a standalone executable with `.\Build-Release.ps1`.
 
-The first launch presents a privacy-focused setup wizard. Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
+## First run
+
+`.\Setup-Jarvis.ps1` installs dependencies and downloads the language, embedding, wake-word, and voice models. The first launch then walks through the choices that need a person:
+
+1. **Microphone** — a live meter shows it is being heard, and one button measures room tone and sets the level at which J.A.R.V.I.S decides you are speaking, instead of shipping one threshold for every room.
+2. **Voice** — offline neural (faster, works with no connection) or the Edge voice, with a button to hear it.
+3. **"Hey Jarvis"** — the local wake word, no account required.
+4. **Startup** — the wake word only works while J.A.R.V.I.S is running, so this starts it at sign-in.
+5. **Privacy** — memory, proactive alerts, and privacy mode.
+
+Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
 
 ## Voice output
 
