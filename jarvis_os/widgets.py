@@ -41,11 +41,13 @@ class Card(tk.Frame):
                  glow: str | None = None, padding: int = Space.MD, radius: int = RADIUS, **kwargs):
         super().__init__(parent, bg=parent["bg"], **kwargs)
         self._fill, self._border, self._glow, self._radius = fill, border, glow, radius
+        # The canvas is placed rather than packed so it fills the card as a
+        # backdrop without contributing to the requested size. The body is
+        # packed, so the card sizes itself from its contents as a frame would.
         self.canvas = tk.Canvas(self, bg=parent["bg"], highlightthickness=0, bd=0)
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.body = tk.Frame(self, bg=fill)
-        self.body.place(relx=0, rely=0, relwidth=1, relheight=1,
-                        x=padding, y=padding, width=-padding * 2, height=-padding * 2)
+        self.body.pack(fill="both", expand=True, padx=padding, pady=padding)
         self.bind("<Configure>", self._redraw)
 
     def set_glow(self, colour: str | None) -> None:

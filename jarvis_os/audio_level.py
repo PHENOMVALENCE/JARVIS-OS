@@ -22,13 +22,32 @@ NOISE_FLOOR = 130.0
 SPEECH_CEILING = 6000.0
 
 
-def normalise(rms: float) -> float:
+def rms(data: bytes) -> float:
+    """Root-mean-square of 16-bit mono samples.
+
+    audioop is the fast path but was removed in Python 3.13, so fall back to
+    numpy, which this project already depends on.
+    """
+    try:
+        import audioop
+
+        return float(audioop.rms(data, 2))
+    except (ImportError, ModuleNotFoundError):
+        import numpy
+
+        samples = numpy.frombuffer(data, dtype=numpy.int16).astype(numpy.float64)
+        if samples.size == 0:
+            return 0.0
+        return float(numpy.sqrt(numpy.mean(numpy.square(samples))))
+
+
+def normalise(value: float) -> float:
     """Map a raw RMS amplitude onto 0-1 with a logarithmic response."""
-    if rms <= NOISE_FLOOR:
+    if value <= NOISE_FLOOR:
         return 0.0
     span = math.log10(SPEECH_CEILING / NOISE_FLOOR)
-    value = math.log10(min(rms, SPEECH_CEILING) / NOISE_FLOOR) / span
-    return max(0.0, min(1.0, value))
+    scaled = math.log10(min(value, SPEECH_CEILING) / NOISE_FLOOR) / span
+    return max(0.0, min(1.0, scaled))
 
 
 class MicrophoneLevel:
@@ -69,13 +88,11 @@ class MicrophoneLevel:
     def _run(self) -> None:
         audio = stream = None
         try:
-            import audioop
-
             audio, stream = self._open()
             self.available = True
             while not self._stop.is_set():
                 data = stream.read(CHUNK, exception_on_overflow=False)
-                target = normalise(audioop.rms(data, 2))
+                target = normalise(rms(data))
                 # Rise quickly so speech registers immediately, fall slowly so the
                 # visualiser glides instead of flickering between syllables.
                 weight = 0.55 if target > self.level else 0.18
@@ -101,8 +118,6 @@ class MicrophoneLevel:
 
 def measure_ambient(seconds: float = 1.5, device_index: int | None = None) -> float:
     """Sample room tone, used to calibrate the speech detection threshold."""
-    import audioop
-
     import pyaudio
 
     audio = pyaudio.PyAudio()
@@ -116,7 +131,7 @@ def measure_ambient(seconds: float = 1.5, device_index: int | None = None) -> fl
         )
         deadline = time.time() + seconds
         while time.time() < deadline:
-            readings.append(audioop.rms(stream.read(CHUNK, exception_on_overflow=False), 2))
+            readings.append(rms(stream.read(CHUNK, exception_on_overflow=False)))
     finally:
         if stream is not None:
             try:

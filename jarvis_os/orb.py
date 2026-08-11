@@ -18,7 +18,6 @@ class VoiceOrb(tk.Canvas):
     """Concentric reactive rings around a core that responds to input level."""
 
     RING_POINTS = 72
-    HISTORY = 64
 
     STATE_COLOURS = {
         "idle": (Palette.ACCENT_DIM, Palette.VIOLET_DIM),
@@ -40,7 +39,6 @@ class VoiceOrb(tk.Canvas):
         self.level = 0.0
         self._display_level = 0.0
         self._phase = 0.0
-        self._history = [0.0] * self.HISTORY
         self._running = False
 
     def set_state(self, state: str) -> None:
@@ -64,8 +62,6 @@ class VoiceOrb(tk.Canvas):
         self._phase += 0.09
         # Ease the drawn level toward the measured one so the orb never jitters.
         self._display_level += (self.level - self._display_level) * 0.3
-        self._history.append(self._display_level)
-        del self._history[0]
         try:
             self._draw()
         except tk.TclError:
@@ -137,7 +133,7 @@ class VoiceOrb(tk.Canvas):
                 + math.sin(angle * 5 - self._phase * 1.3) * 0.30
                 + math.sin(angle * 8 + self._phase * 0.7) * 0.15
             )
-            offset = radius * (1 + wobble * energy * 0.30)
+            offset = radius * (1 + wobble * energy * 0.26)
             points.extend((cx + math.cos(angle) * offset, cy + math.sin(angle) * offset))
         self.create_polygon(
             points, smooth=True, splinesteps=8,
@@ -145,6 +141,15 @@ class VoiceOrb(tk.Canvas):
             outline=blend(self.background, secondary, 0.65 + energy * 0.35),
             width=2,
         )
+        # A clean circle tracking loudness reads more precisely than the
+        # organic ring alone, so the two together show both life and level.
+        if self._display_level > 0.03:
+            level_radius = radius * (0.52 + self._display_level * 0.62)
+            self.create_oval(cx - level_radius, cy - level_radius,
+                             cx + level_radius, cy + level_radius,
+                             outline=blend(self.background, Palette.ACCENT,
+                                           0.35 + self._display_level * 0.65),
+                             width=2)
 
     def _draw_core(self, cx: float, cy: float, radius: float,
                    primary: str, secondary: str, energy: float) -> None:
@@ -157,20 +162,6 @@ class VoiceOrb(tk.Canvas):
         self.create_oval(cx - core_radius * 0.55, cy - core_radius * 0.55,
                          cx + core_radius * 0.55, cy + core_radius * 0.55,
                          fill=blend(primary, "#ffffff", 0.25 + energy * 0.3), outline="")
-        if self.state == "listening" and self._display_level > 0.04:
-            self._draw_waveform(cx, cy, radius * 2.3)
-
-    def _draw_waveform(self, cx: float, cy: float, span: float) -> None:
-        """A short history of what the microphone heard, drawn under the core."""
-        columns = 28
-        recent = self._history[-columns:]
-        spacing = span / columns
-        base_y = cy + span * 0.62
-        for index, value in enumerate(recent):
-            x = cx - span / 2 + index * spacing + spacing / 2
-            bar = max(1.5, value * span * 0.22)
-            colour = blend(Palette.ACCENT_DEEP, Palette.ACCENT, min(1.0, value * 1.6))
-            self.create_line(x, base_y - bar, x, base_y + bar, fill=colour, width=2)
 
 
 class OrbCaption(tk.Frame):
