@@ -3,10 +3,17 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from jarvis_os.speech import HandsFreeListener, SpeechEngine
+from jarvis_os.speech import HandsFreeListener, SpeechEngine, prepare_for_speech
 
 
 class SpeechEngineTests(unittest.TestCase):
+    def test_prepares_display_text_without_speaking_markup_or_emoji(self):
+        spoken = prepare_for_speech("## Result 🤖\n- **Open** [the guide](https://example.com) ✅")
+        self.assertEqual(spoken, "Result. Open the guide.")
+
+    def test_pronounces_jarvis_as_a_word(self):
+        self.assertEqual(prepare_for_speech("J.A.R.V.I.S is ready"), "Jarvis is ready.")
+
     def test_prefers_matching_male_voice(self):
         engine = Mock()
         engine.getProperty.return_value = [
