@@ -1,6 +1,9 @@
 comtypes==1.4.8
 edge-tts==7.2.8
 faster-whisper==1.2.1
+piper-tts==1.6.0
+openwakeword==0.6.0
+onnxruntime==1.28.0
 cvzone==1.6.1
 elevenlabs==1.50.3
 etext==0.0.1

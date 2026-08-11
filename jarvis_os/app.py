@@ -26,8 +26,8 @@ from .user_presence import SecuritySession
 from .setup_ui import FirstRunWizard
 from .updates import UpdateChecker
 from . import __version__
-from .wake_word import WakeWordListener
-from .speech import DEFAULT_EDGE_VOICE, HandsFreeListener, SentenceBuffer, SpeechEngine
+from .wake_word import make_wake_word
+from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, HandsFreeListener, SentenceBuffer, SpeechEngine
 
 
 BG = "#070b12"
@@ -87,6 +87,8 @@ class JarvisApp:
             voice_hint=str(self.settings_repo.get("tts_voice", "david")),
             engine=str(self.settings_repo.get("tts_engine", "edge")),
             edge_voice=str(self.settings_repo.get("edge_voice", DEFAULT_EDGE_VOICE)),
+            piper_voice=str(self.settings_repo.get("piper_voice", DEFAULT_PIPER_VOICE)),
+            models_dir=self.settings.project_root / "models",
         )
         self._streaming = False
         self._sentences = SentenceBuffer()
@@ -501,9 +503,10 @@ class JarvisApp:
 
     def _start_wake_word(self) -> None:
         import os
-        self.wake_word = WakeWordListener(
-            os.getenv("PORCUPINE_API_KEY", ""),
+        self.wake_word = make_wake_word(
             lambda: self.root.after(0, self.listen),
+            access_key=os.getenv("PORCUPINE_API_KEY", ""),
+            backend=str(self.settings_repo.get("wake_word_backend", "openwakeword")),
             sensitivity=float(self.settings_repo.get("wake_word_sensitivity", 0.55)),
         )
         if self.settings_repo.get("wake_word_enabled", False):
@@ -523,6 +526,7 @@ class JarvisApp:
 
     def _warm_model(self) -> None:
         """Load the local model during startup so the first question is not slow."""
+        self.speech_engine.warm()
         warm = getattr(self.controller.provider, "warm", None)
         if not callable(warm):
             return

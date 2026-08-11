@@ -9,7 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from .security import AuditLog
-from .speech import DEFAULT_EDGE_VOICE, EDGE_VOICES
+from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, EDGE_VOICES, PIPER_VOICES
 from .storage import PermissionRepository, SettingsRepository
 
 
@@ -68,7 +68,7 @@ class SettingsWindow(tk.Toplevel):
             ("Privacy mode (blocks capture and cloud features)", self.privacy),
             ("Proactive reminders and system health alerts", self.proactive),
             ("Require Windows Hello for high-risk actions", self.hello),
-            ("Listen for the 'Jarvis' wake word (requires PORCUPINE_API_KEY)", self.wake_word),
+            ("Listen for the 'Hey Jarvis' wake word", self.wake_word),
             ("Hands-free conversation (continuously listen when not speaking)", self.hands_free),
             ("Check the web automatically for time-sensitive questions", self.auto_web),
             ("Interrupt by voice while speaking (use headphones, or it hears itself)", self.barge_in),
@@ -83,14 +83,19 @@ class SettingsWindow(tk.Toplevel):
         self.whisper.set(values["whisper_model"])
         self.whisper.pack(fill="x")
         ttk.Label(frame, text="Voice engine").pack(anchor="w", pady=(16, 2))
-        self.tts_engine = ttk.Combobox(frame, values=("edge", "windows"), state="readonly")
+        self.tts_engine = ttk.Combobox(frame, values=("piper", "edge", "windows"), state="readonly")
         self.tts_engine.set(values.get("tts_engine", "edge"))
         self.tts_engine.pack(fill="x")
         ttk.Label(
             frame,
-            text="edge = natural neural voice (needs internet); windows = offline SAPI voice",
-            foreground="#555555",
+            text="piper = offline neural, fastest (downloads a 63 MB voice once)\n"
+                 "edge = neural, needs internet;  windows = offline SAPI",
+            foreground="#555555", justify="left",
         ).pack(anchor="w")
+        ttk.Label(frame, text="Offline neural voice (used when the engine is 'piper')").pack(anchor="w", pady=(12, 2))
+        self.piper_voice = ttk.Combobox(frame, values=tuple(PIPER_VOICES), state="readonly")
+        self.piper_voice.set(values.get("piper_voice", DEFAULT_PIPER_VOICE))
+        self.piper_voice.pack(fill="x")
         ttk.Label(frame, text="Neural voice (used when the engine is 'edge')").pack(anchor="w", pady=(12, 2))
         self.edge_voice = ttk.Combobox(frame, values=tuple(EDGE_VOICES), state="readonly")
         self.edge_voice.set(values.get("edge_voice", DEFAULT_EDGE_VOICE))
@@ -127,6 +132,12 @@ class SettingsWindow(tk.Toplevel):
         self.mic_timeout.set(values.get("mic_timeout", 18)); self.mic_timeout.pack(fill="x")
         ttk.Checkbutton(frame, text="Extended listening (capture trailing words after pauses)",
                         variable=self.mic_extended).pack(anchor="w", pady=5)
+        ttk.Label(frame, text="Wake word backend").pack(anchor="w", pady=(12, 2))
+        self.wake_backend = ttk.Combobox(frame, values=("openwakeword", "porcupine"), state="readonly")
+        self.wake_backend.set(values.get("wake_word_backend", "openwakeword"))
+        self.wake_backend.pack(fill="x")
+        ttk.Label(frame, text="openwakeword needs no account; porcupine needs PORCUPINE_API_KEY",
+                  foreground="#555555").pack(anchor="w")
         ttk.Label(frame, text="Wake word sensitivity (higher = easier to trigger)").pack(anchor="w", pady=(12, 2))
         self.wake_sensitivity = ttk.Spinbox(frame, from_=0.1, to=1.0, increment=0.05)
         self.wake_sensitivity.set(values.get("wake_word_sensitivity", 0.55)); self.wake_sensitivity.pack(fill="x")
@@ -236,6 +247,8 @@ class SettingsWindow(tk.Toplevel):
             "tts_rate": int(self.tts_rate.get()),
             "tts_engine": self.tts_engine.get().strip() or "edge",
             "edge_voice": self.edge_voice.get().strip() or DEFAULT_EDGE_VOICE,
+            "piper_voice": self.piper_voice.get().strip() or DEFAULT_PIPER_VOICE,
+            "wake_word_backend": self.wake_backend.get(),
             "vision_model": self.vision_model.get(),
             "home_location": self.home_location.get().strip(),
             "mic_energy": int(self.mic_energy.get()),
