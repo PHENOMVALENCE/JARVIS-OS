@@ -25,6 +25,7 @@ from .setup_ui import FirstRunWizard
 from .updates import UpdateChecker
 from . import __version__
 from .wake_word import WakeWordListener
+from .speech import HandsFreeListener, SpeechEngine
 
 
 BG = "#070b12"
@@ -41,8 +42,8 @@ class JarvisApp:
         self.settings = settings or Settings()
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
         self.work: queue.Queue[str | None] = queue.Queue()
-        self.speech: queue.Queue[str | None] = queue.Queue()
         self.voice = None
+        self._voice_lock = threading.Lock()
         database = Database(self.settings.data_dir / "jarvis.db")
         self.settings_repo = SettingsRepository(database)
         self.permissions_repo = PermissionRepository(database)
@@ -75,14 +76,27 @@ class JarvisApp:
         self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
         self.tray_icon = None
         self._closing = False
+        self.speech_engine = SpeechEngine(
+            rate=int(self.settings_repo.get("tts_rate", 178)),
+            volume=float(self.settings_repo.get("tts_volume", 1.0)),
+            voice_hint=str(self.settings_repo.get("tts_voice", "david")),
+        )
+        self.hands_free = HandsFreeListener(
+            self._listen_once,
+            lambda text: self.root.after(0, lambda: self._submit_voice(text)),
+            lambda state: self.root.after(0, lambda: self._voice_state(state)),
+            self.speech_engine.speaking,
+        )
 
         self._configure_window()
         self._build_ui()
         threading.Thread(target=self._worker, daemon=True, name="jarvis-actions").start()
-        threading.Thread(target=self._speaker, daemon=True, name="jarvis-speech").start()
+        self.speech_engine.start()
         self._start_tray()
         self._start_emergency_hotkey()
         self._start_wake_word()
+        if self.settings_repo.get("hands_free_enabled", True):
+            self.root.after(900, self.hands_free.start)
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
         if not self.settings_repo.get("first_run_complete", False):
@@ -173,9 +187,21 @@ class JarvisApp:
             self.voice = VoiceInput(self.settings_repo.get("whisper_model", self.settings.whisper_model))
         threading.Thread(target=self._listen_worker, daemon=True, name="jarvis-microphone").start()
 
+    def toggle_hands_free(self) -> None:
+        if self.hands_free.enabled.is_set():
+            self.hands_free.pause()
+        else:
+            self.hands_free.start()
+
+    def _listen_once(self) -> str:
+        with self._voice_lock:
+            if self.voice is None:
+                self.voice = VoiceInput(self.settings_repo.get("whisper_model", self.settings.whisper_model))
+            return self.voice.listen()
+
     def _listen_worker(self) -> None:
         try:
-            text = self.voice.listen()
+            text = self._listen_once()
             if text:
                 self.root.after(0, lambda: self._submit_voice(text))
             else:
@@ -201,7 +227,17 @@ class JarvisApp:
         self.add_message("J.A.R.V.I.S", text, details)
         self.set_status("ready", SUCCESS)
         if self.settings_repo.get("speak_responses", self.settings.speak_responses):
-            self.speech.put(text)
+            self.speech_engine.say(text)
+
+    def _voice_state(self, state: str) -> None:
+        if state == "listening":
+            self.set_status("listening", ACCENT)
+        elif state == "speaking":
+            self.set_status("speaking", "#b78cff")
+        elif state == "paused":
+            self.set_status("voice paused", MUTED)
+        elif state.startswith("error:"):
+            self._show_error(f"Hands-free microphone {state}")
 
     def open_settings(self) -> None:
         SettingsWindow(
@@ -211,18 +247,6 @@ class JarvisApp:
 
     def open_workflows(self) -> None:
         WorkflowWindow(self.root, self.workflows)
-
-    def _speaker(self) -> None:
-        engine = None
-        while (text := self.speech.get()) is not None:
-            try:
-                if engine is None:
-                    import pyttsx3
-                    engine = pyttsx3.init()
-                engine.say(text)
-                engine.runAndWait()
-            except Exception:
-                engine = None
 
     def confirm_action(self, command: Command) -> bool:
         answer: list[bool] = []
@@ -310,7 +334,8 @@ class JarvisApp:
             return
         self._closing = True
         self.work.put(None)
-        self.speech.put(None)
+        self.hands_free.stop()
+        self.speech_engine.stop()
         if self.tray_icon:
             self.tray_icon.stop()
         if self.emergency_hotkey:

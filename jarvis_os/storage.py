@@ -107,6 +107,10 @@ class SettingsRepository:
         "security_timeout_minutes": 15,
         "first_run_complete": False,
         "wake_word_enabled": False,
+        "hands_free_enabled": True,
+        "tts_rate": 178,
+        "tts_volume": 1.0,
+        "tts_voice": "david",
     }
 
     def __init__(self, database: Database):
