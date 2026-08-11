@@ -11,7 +11,7 @@ from pathlib import Path
 from tkinter import messagebox, scrolledtext
 
 from .actions import WindowsActions
-from .assistant import AssistantController, ConversationStore, VoiceInput, make_provider
+from .assistant import AssistantController, ConversationStore, VoiceConfig, VoiceInput, make_provider
 from .commands import Command
 from .security import AuditLog, SecureExecutor
 from .plugins import PluginManager
@@ -27,7 +27,7 @@ from .setup_ui import FirstRunWizard
 from .updates import UpdateChecker
 from . import __version__
 from .wake_word import WakeWordListener
-from .speech import HandsFreeListener, SpeechEngine
+from .speech import DEFAULT_EDGE_VOICE, HandsFreeListener, SpeechEngine
 
 
 BG = "#070b12"
@@ -85,6 +85,8 @@ class JarvisApp:
             rate=int(self.settings_repo.get("tts_rate", 178)),
             volume=float(self.settings_repo.get("tts_volume", 1.0)),
             voice_hint=str(self.settings_repo.get("tts_voice", "david")),
+            engine=str(self.settings_repo.get("tts_engine", "edge")),
+            edge_voice=str(self.settings_repo.get("edge_voice", DEFAULT_EDGE_VOICE)),
         )
         self.hands_free = HandsFreeListener(
             self._listen_once,
@@ -319,10 +321,13 @@ class JarvisApp:
             self.security_session.touch()
         return "break"
 
+    def _make_voice_input(self) -> VoiceInput:
+        return VoiceInput(VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model))
+
     def listen(self) -> None:
         self.set_status("listening")
         if self.voice is None:
-            self.voice = VoiceInput(self.settings_repo.get("whisper_model", self.settings.whisper_model))
+            self.voice = self._make_voice_input()
         threading.Thread(target=self._listen_worker, daemon=True, name="jarvis-microphone").start()
 
     def toggle_hands_free(self) -> None:
@@ -345,7 +350,9 @@ class JarvisApp:
     def _listen_once(self) -> str:
         with self._voice_lock:
             if self.voice is None:
-                self.voice = VoiceInput(self.settings_repo.get("whisper_model", self.settings.whisper_model))
+                self.voice = self._make_voice_input()
+            else:
+                self.voice.config = VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model)
             return self.voice.listen()
 
     def _listen_worker(self) -> None:
@@ -442,13 +449,16 @@ class JarvisApp:
     def _start_wake_word(self) -> None:
         import os
         self.wake_word = WakeWordListener(
-            os.getenv("PORCUPINE_API_KEY", ""), lambda: self.root.after(0, self.listen)
+            os.getenv("PORCUPINE_API_KEY", ""),
+            lambda: self.root.after(0, self.listen),
+            sensitivity=float(self.settings_repo.get("wake_word_sensitivity", 0.55)),
         )
         if self.settings_repo.get("wake_word_enabled", False):
             self.wake_word.start()
 
     def emergency_stop(self) -> None:
         self.workflows.cancel()
+        self.speech_engine.silence()
         while True:
             try:
                 self.work.get_nowait()

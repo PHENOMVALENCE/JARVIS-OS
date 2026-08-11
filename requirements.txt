@@ -1,4 +1,5 @@
 comtypes==1.4.8
+edge-tts==7.2.8
 cvzone==1.6.1
 elevenlabs==1.50.3
 etext==0.0.1

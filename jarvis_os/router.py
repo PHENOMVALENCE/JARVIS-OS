@@ -8,6 +8,48 @@ from urllib.parse import quote_plus
 from .commands import Command, Risk
 
 
+WAKE_NAME = re.compile(
+    r"""^\s*
+    (?:(?:hey|hi|hello|ok|okay|yo)\s+)?      # optional greeting
+    (?:j\.?\s?a\.?\s?r\.?\s?v\.?\s?i\.?\s?s|jarvis|jervis|javis|jarviss)
+    \s*[,:.!?-]*\s*                            # trailing punctuation after the name
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+LEAD_IN = re.compile(
+    r"""^\s*
+    (?:
+        please
+      | (?:can|could|would|will)\s+you(?:\s+please)?
+      | i\s+(?:want|need)\s+you\s+to
+      | i\s+(?:want|need)\s+to
+      | go\s+ahead\s+and
+      | for\s+me
+    )
+    [\s,]+
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+TRAILING_POLITENESS = re.compile(r"[\s,]*\b(?:please|for me|thanks|thank you)\b[\s.!?]*$", re.IGNORECASE)
+
+
+def strip_wake_name(text: str) -> str:
+    """Remove a leading 'Jarvis'/'Hey Jarvis' address and surrounding politeness.
+
+    Spoken commands almost always begin with the assistant's name. Without this the
+    name becomes part of the command text and every request falls through to chat.
+    """
+    value = str(text).strip()
+    previous = None
+    while previous != value:
+        previous = value
+        value = WAKE_NAME.sub("", value, count=1).strip()
+        value = LEAD_IN.sub("", value, count=1).strip()
+    return TRAILING_POLITENESS.sub("", value).strip() or str(text).strip()
+
+
 class CommandRouter:
     """Route common commands locally and leave general conversation to the LLM."""
 
@@ -22,19 +64,38 @@ class CommandRouter:
     }
 
     def route(self, text: str) -> Command:
-        raw = text.strip()
+        raw = strip_wake_name(text)
         normalized = re.sub(r"\s+", " ", raw.lower()).strip(" .!?")
         if not normalized:
             return Command("noop", raw_text=raw)
 
+        # Grounded spoken answer from live sources.
         match = re.match(
-            r"(?:research|look up|answer from (?:the )?(?:web|internet)|explain from (?:the )?(?:web|internet))\s+(.+)",
+            r"""(?:research
+                |look\s+(?:it\s+|this\s+|that\s+)?up
+                |look\s+up
+                |find\s+out(?:\s+about)?
+                |search\s+online(?:\s+for)?
+                |search\s+the\s+net(?:\s+for)?
+                |answer\s+from\s+(?:the\s+)?(?:web|internet)
+                |explain\s+from\s+(?:the\s+)?(?:web|internet)
+                |what\s+does\s+the\s+(?:web|internet)\s+say\s+about
+                |check\s+(?:the\s+)?(?:web|internet|online)\s+for
+            )\s+(.+)""",
             normalized,
+            re.VERBOSE,
         )
         if match:
             return Command("web_research", {"query": match.group(1)}, raw_text=raw)
 
-        match = re.match(r"(?:search (?:the )?(?:web|internet|google) for|google)\s+(.+)", normalized)
+        # Explicitly asking for browser results rather than a spoken answer.
+        match = re.match(
+            r"(?:search (?:the )?(?:web|internet|google) for"
+            r"|google"
+            r"|(?:open|show(?: me)?) (?:the )?(?:google |web |browser )?(?:search )?results for"
+            r"|browse for)\s+(.+)",
+            normalized,
+        )
         if match:
             return Command("web_search", {"query": match.group(1)}, raw_text=raw)
 
@@ -161,3 +222,57 @@ class CommandRouter:
 
 def browser_search_url(query: str) -> str:
     return f"https://www.google.com/search?q={quote_plus(query)}"
+
+
+# A local model answers from frozen training weights, so anything time-sensitive
+# needs live sources instead. These patterns stay deliberately narrow: a false
+# positive turns ordinary conversation into a search engine.
+_RECENCY = re.compile(
+    r"""\b(?:
+        today|tonight|tomorrow|yesterday|right\s+now|currently|current|now
+      | latest|newest|most\s+recent|recent|recently|so\s+far
+      | this\s+(?:week|month|year|morning|afternoon|evening)
+      | last\s+(?:night|week|month|year)
+      | at\s+the\s+moment|these\s+days|nowadays|up[-\s]to[-\s]date
+      | breaking|live|upcoming|still\s+(?:alive|open|running)
+      | 20[2-9]\d
+    )\b""",
+    re.VERBOSE,
+)
+
+_VOLATILE = re.compile(
+    r"""(?:
+        \bweather\b|\bforecast\b|\btemperature\s+(?:in|at|of)\b
+      | \bprice\s+of\b|\bhow\s+much\s+(?:is|are|does|do)\b|\bcost\s+of\b
+      | \bstock\s+price\b|\bshare\s+price\b|\bexchange\s+rate\b|\bworth\s+now\b
+      | \bwho\s+won\b|\bwho\s+is\s+winning\b|\bscore\s+(?:of|in|for)\b|\bfinal\s+score\b
+      | \belection\s+results?\b|\bwho\s+is\s+the\s+(?:current\s+)?(?:president|prime\s+minister|ceo|champion)\b
+      | \bnews\b|\bheadlines\b|\bwhat(?:'s|\s+is)\s+happening\b
+      | \brelease\s+date\b|\bout\s+yet\b|\bwhen\s+(?:is|does)\s+.+\s+(?:release|launch|come\s+out)\b
+    )""",
+    re.VERBOSE,
+)
+
+_ASKING = re.compile(
+    r"""^(?:
+        who|what|whats|what's|when|where|which|why|how|is|are|was|were
+      | do|does|did|can|could|should|will|would|has|have|any
+      | tell\s+me|show\s+me|give\s+me|remind\s+me\s+what
+    )\b""",
+    re.VERBOSE,
+)
+
+
+def needs_live_information(text: str) -> bool:
+    """True when a question depends on facts the local model cannot know.
+
+    Explicit phrasings ("research X", "look up X") are handled by the router.
+    This covers the questions people ask without thinking to say "search".
+    """
+    normalized = re.sub(r"\s+", " ", str(text).lower()).strip()
+    if not normalized:
+        return False
+    asking = bool(_ASKING.match(normalized)) or normalized.endswith("?")
+    if not asking:
+        return False
+    return bool(_VOLATILE.search(normalized)) or bool(_RECENCY.search(normalized))

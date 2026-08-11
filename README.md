@@ -9,8 +9,10 @@ The complete Mark 7 handbook starts at [`docs/README.md`](docs/README.md). It in
 New Mark 7 capabilities:
 
 - Use the full command-center interface with an animated voice core, live status telemetry, quick actions, and a responsive three-panel layout.
-- Hold a hands-free conversation: J.A.R.V.I.S continuously listens when enabled, pauses during its own speech, and replies through a preferred Windows male voice.
-- Ask `Research <topic>` for a source-grounded current web answer, or `Search the internet for <topic>` to open browser results.
+- Hold a hands-free conversation: J.A.R.V.I.S continuously listens when enabled, pauses during its own speech, and replies in a natural neural voice.
+- Address it by name the way you would a person. `Jarvis, open Notepad`, `Hey Jarvis, take a screenshot`, and `Jarvis, please close Spotify` all work; the wake name, greetings, and politeness are stripped before routing.
+- Ask `Research <topic>`, `Look up <topic>`, or `Search online for <topic>` for a source-grounded spoken answer. `Search the internet for <topic>` and `Show me the results for <topic>` open browser results instead.
+- Time-sensitive questions reach for live sources automatically. `What is the weather today` or `Who won the match last night` is answered from the web with citations rather than from the local model's frozen training data, while timeless questions stay conversational. Turn this off with **Check the web automatically for time-sensitive questions** in SETTINGS.
 - Configure behavior and per-action permissions from **SETTINGS**.
 - Build voice, manual, or daily routines from **WORKFLOWS**.
 - Press `Ctrl+Alt+J` at any time to cancel pending automation and lock sensitive actions.
@@ -20,6 +22,20 @@ New Mark 7 capabilities:
 - Build a standalone executable with `.\Build-Release.ps1`.
 
 The first launch presents a privacy-focused setup wizard. Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
+
+## Voice output
+
+Speech uses Microsoft Edge neural voices by default. They are free, need no API key, and sound close to a human speaker. Synthesis requires an internet connection, so J.A.R.V.I.S falls back to the offline Windows SAPI voice when it cannot reach the service, and stops retrying after a few failures so a lost connection does not slow every reply.
+
+Choose the engine and voice under **SETTINGS → General**. `edge` is the natural neural voice (default `en-GB-RyanNeural`); `windows` is the fully offline SAPI voice.
+
+## Listening
+
+Natural speech contains pauses, and a microphone that stops at the first one truncates the request. **Extended listening** keeps capturing for a short window after you pause and joins the pieces, so "open the... budget spreadsheet" arrives as one command. Tune microphone sensitivity, pause length, listen timeout, wake-word sensitivity, and the conversation memory window under **SETTINGS → General**.
+
+## Web sources
+
+Live answers come from documented public APIs, never from scraping. With no key configured J.A.R.V.I.S uses the DuckDuckGo Instant Answer API and the Wikipedia REST API, which answer definitional and encyclopedic questions well but cover breaking news poorly. Set `SERPAPI_API_KEY` in `.env` for full current-events coverage.
 
 J.A.R.V.I.S is a Windows 11 desktop assistant with simultaneous keyboard and push-to-talk voice input, local or cloud conversation, permission-controlled PC actions, persistent memory, an audit trail, system-tray operation, and automatic startup at sign-in.
 

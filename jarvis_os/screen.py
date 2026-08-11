@@ -9,13 +9,38 @@ from pathlib import Path
 from .commands import ActionResult
 
 
+VISION_SYSTEM_PROMPT = (
+    "You are J.A.R.V.I.S observing the user's screen. Describe what you see clearly and practically. "
+    "Focus on active windows, readable text, buttons, errors, progress indicators, and anything the user likely cares about. "
+    "If the user asked a specific question, answer it directly from what's visible. "
+    "Use a conversational tone, not a robotic inventory. Note uncertainty when text is blurry or partially obscured."
+)
+
+
 class ScreenService:
     def __init__(self, data_dir: Path, settings_repo=None, api_key: str = ""):
         self.data_dir = data_dir
         self.settings_repo = settings_repo
         self.api_key = api_key
 
-    def capture(self, analyze: bool = False, prompt: str = "Describe the visible screen.") -> ActionResult:
+    def _vision_model(self) -> str:
+        if self.settings_repo:
+            return str(self.settings_repo.get("vision_model", "gpt-4o"))
+        return "gpt-4o"
+
+    def _build_prompt(self, prompt: str, context: str = "") -> str:
+        sections = [VISION_SYSTEM_PROMPT]
+        if context.strip():
+            sections.append(f"Recent conversation context:\n{context.strip()}")
+        sections.append(f"User request: {prompt.strip() or 'Describe the visible screen and any important text or controls.'}")
+        return "\n\n".join(sections)
+
+    def capture(
+        self,
+        analyze: bool = False,
+        prompt: str = "Describe the visible screen.",
+        context: str = "",
+    ) -> ActionResult:
         if self.settings_repo and self.settings_repo.get("privacy_mode", False):
             return ActionResult(False, "Screen capture is blocked while privacy mode is enabled.")
         from PIL import ImageDraw, ImageGrab
@@ -37,12 +62,15 @@ class ScreenService:
             encoded = base64.b64encode(image_file.read()).decode("ascii")
         from openai import OpenAI
         response = OpenAI(api_key=self.api_key).chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}},
-            ]}],
-            max_tokens=500,
+            model=self._vision_model(),
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": self._build_prompt(prompt, context)},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}", "detail": "high"}},
+                ],
+            }],
+            max_tokens=900,
         )
         answer = response.choices[0].message.content or "The screen could not be described."
         return ActionResult(True, answer.strip(), {"matches": [str(path)]})

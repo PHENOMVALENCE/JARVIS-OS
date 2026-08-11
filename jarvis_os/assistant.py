@@ -8,9 +8,10 @@ import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
-from .router import CommandRouter
+from .commands import Command
+from .router import CommandRouter, needs_live_information
 from .security import SecureExecutor
 from .settings import Settings
 
@@ -47,12 +48,13 @@ class OllamaProvider:
 
 
 class OpenAIProvider:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         self.api_key = api_key
+        self.model = model
 
     def reply(self, messages: list[dict[str, str]]) -> str:
         from openai import OpenAI
-        response = OpenAI(api_key=self.api_key).chat.completions.create(model="gpt-4o-mini", messages=messages)
+        response = OpenAI(api_key=self.api_key).chat.completions.create(model=self.model, messages=messages)
         return (response.choices[0].message.content or "").strip()
 
 
@@ -106,17 +108,55 @@ class AssistantController:
         self.plugins = plugins
         self.workflows = workflows
         self.settings_repo = settings_repo
+        self._last_action_context: str | None = None
+
+    def _auto_web_enabled(self) -> bool:
+        return not self.settings_repo or bool(self.settings_repo.get("auto_web_answers", True))
+
+    def _memory_enabled(self) -> bool:
+        return not self.settings_repo or bool(self.settings_repo.get("conversation_memory", True))
+
+    def _memory_limit(self) -> int:
+        if not self.settings_repo:
+            return 40
+        return max(10, min(80, int(self.settings_repo.get("conversation_memory_limit", 40))))
+
+    def _conversation_context(self, limit: int = 8) -> str:
+        """Recent dialogue, so screen analysis knows what the user was discussing."""
+        if not self._memory_enabled():
+            return ""
+        history = self.store.recent(limit=limit)
+        return "\n".join(f"{item['role']}: {item['content'][:240]}" for item in history)
+
+    def _system_prompt(self) -> str:
+        if not self._last_action_context:
+            return SYSTEM_PROMPT
+        return f"{SYSTEM_PROMPT}\n\nRecent system activity: {self._last_action_context}"
+
+    def _upgrade_to_live_answer(self, command: Command) -> tuple[Command, bool]:
+        """Send time-sensitive questions to live sources instead of stale weights."""
+        if command.action != "chat" or not self._auto_web_enabled():
+            return command, False
+        question = str(command.arguments.get("message", "")).strip()
+        if not question or not needs_live_information(question):
+            return command, False
+        return Command("web_research", {"query": question}, raw_text=command.raw_text), True
 
     def process(self, text: str, spoken: bool = False) -> AssistantReply:
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
             result = self.workflows.run(workflow)
+            self._last_action_context = f"workflow {workflow} -> {result.message}"
             return AssistantReply(result.message)
         command = self.plugins.route(text) if self.plugins else None
         command = command or self.router.route(text)
+        command, auto_research = self._upgrade_to_live_answer(command)
         if command.action != "chat":
+            if command.action == "analyze_screen":
+                command.arguments["context"] = self._conversation_context()
             result = self.executor.execute(command)
             details = result.data.get("matches") if result.data else None
+            self._last_action_context = f"{command.action} -> {result.message[:240]}"
             if command.action == "semantic_search" and result.success and details:
                 context = "\n\n".join(details)
                 answer = self.provider.reply([
@@ -133,13 +173,17 @@ class AssistantController:
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nWeb results:\n{context}"},
                 ])
                 return AssistantReply(answer, details)
-            return AssistantReply(result.message, details)
-        memory_enabled = not self.settings_repo or self.settings_repo.get("conversation_memory", True)
+            if not auto_research:
+                return AssistantReply(result.message, details)
+            # The user asked a normal question, so answer conversationally rather
+            # than reporting a search failure they never asked for.
+            text = str(command.arguments["query"])
+        memory_enabled = self._memory_enabled()
         if memory_enabled:
             self.store.append("user", text)
-        history = self.store.recent() if memory_enabled else [{"role": "user", "content": text}]
+        history = self.store.recent(limit=self._memory_limit()) if memory_enabled else [{"role": "user", "content": text}]
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": self._system_prompt()},
             *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
             *history,
         ]
@@ -149,29 +193,96 @@ class AssistantController:
         return AssistantReply(reply)
 
 
-class VoiceInput:
-    """Lazy, push-to-talk Whisper microphone so startup remains responsive."""
+@dataclass(frozen=True)
+class VoiceConfig:
+    """Tunable microphone behaviour so natural pauses do not truncate speech."""
 
-    def __init__(self, model: str = "base"):
-        self.model = model
-        self._microphone = None
-        self._lock = threading.Lock()
+    model: str = "base"
+    energy: int = 180
+    pause: float = 1.25
+    timeout: int = 18
+    continuation_timeout: int = 6
+    continuation_passes: int = 2
+    dynamic_energy: bool = True
+    hallucinate_threshold: int = 140
+    extended_listening: bool = True
+    mic_index: int | None = None
+
+    @classmethod
+    def from_settings(cls, settings_repo=None, fallback_model: str = "base") -> "VoiceConfig":
+        if not settings_repo:
+            return cls(model=fallback_model)
+        return cls(
+            model=str(settings_repo.get("whisper_model", fallback_model)),
+            energy=int(settings_repo.get("mic_energy", 180)),
+            pause=float(settings_repo.get("mic_pause", 1.25)),
+            timeout=int(settings_repo.get("mic_timeout", 18)),
+            continuation_timeout=int(settings_repo.get("mic_continuation_timeout", 6)),
+            continuation_passes=int(settings_repo.get("mic_continuation_passes", 2)),
+            dynamic_energy=bool(settings_repo.get("mic_dynamic_energy", True)),
+            hallucinate_threshold=int(settings_repo.get("mic_hallucinate_threshold", 140)),
+            extended_listening=bool(settings_repo.get("mic_extended_listening", True)),
+            mic_index=settings_repo.get("mic_device_index"),
+        )
+
+
+class VoiceInput:
+    """Lazy Whisper microphone with extended capture for fuller phrases."""
 
     NO_SPEECH = {"", "[blank_audio]", "[silence]", "(silence)", "thank you for watching"}
 
-    def listen(self, timeout: int = 15, phrase_time_limit: int = 30) -> str:
+    def __init__(self, config: VoiceConfig | None = None, model: str = "base"):
+        self.config = config or VoiceConfig(model=model)
+        self._microphone = None
+        self._lock = threading.Lock()
+        self._config_signature: tuple[Any, ...] | None = None
+
+    def _signature(self) -> tuple[Any, ...]:
+        config = self.config
+        return (
+            config.model, config.energy, config.pause, config.dynamic_energy,
+            config.hallucinate_threshold, config.mic_index,
+        )
+
+    def _ensure_microphone(self) -> None:
+        signature = self._signature()
+        if self._microphone is not None and self._config_signature == signature:
+            return
+        import torch
+        from whisper_mic import WhisperMic
+
+        config = self.config
+        kwargs = {
+            "model": config.model, "english": False, "verbose": False,
+            "energy": config.energy, "pause": config.pause,
+            "dynamic_energy": config.dynamic_energy, "save_file": False,
+            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "implementation": "whisper",
+            "hallucinate_threshold": config.hallucinate_threshold,
+        }
+        if config.mic_index is not None:
+            kwargs["mic_index"] = config.mic_index
+        self._microphone = WhisperMic(**kwargs)
+        self._config_signature = signature
+
+    def _listen_once(self, timeout: int) -> str:
         with self._lock:
-            if self._microphone is None:
-                import torch
-                from whisper_mic import WhisperMic
-                self._microphone = WhisperMic(
-                    model=self.model, english=False, verbose=False, energy=300,
-                    pause=1.25, dynamic_energy=True, save_file=False,
-                    device="cuda" if torch.cuda.is_available() else "cpu",
-                    implementation="whisper", hallucinate_threshold=300,
-                )
-            result = self._microphone.listen(timeout=timeout, phrase_time_limit=phrase_time_limit)
+            self._ensure_microphone()
+            result = self._microphone.listen(timeout=timeout)
         return self.clean_transcript(result)
+
+    def listen(self, timeout: int | None = None, extended: bool | None = None) -> str:
+        """Capture a phrase, then keep listening briefly so pauses do not cut it off."""
+        config = self.config
+        result = self._listen_once(timeout or config.timeout)
+        if not result or not (config.extended_listening if extended is None else extended):
+            return result
+        for _ in range(max(0, config.continuation_passes)):
+            continuation = self._listen_once(config.continuation_timeout)
+            if not continuation:
+                break
+            result = f"{result} {continuation}".strip()
+        return result
 
     @classmethod
     def clean_transcript(cls, result: str | None) -> str:
@@ -185,6 +296,7 @@ def make_provider(settings: Settings, settings_repo=None) -> ChatProvider:
     if settings.llm_provider == "openai":
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is required when JARVIS_LLM_PROVIDER=openai.")
-        return OpenAIProvider(settings.openai_api_key)
+        model = settings_repo.get("openai_chat_model", "gpt-4o-mini") if settings_repo else "gpt-4o-mini"
+        return OpenAIProvider(settings.openai_api_key, str(model))
     model = settings_repo.get("ollama_model", settings.ollama_model) if settings_repo else settings.ollama_model
     return OllamaProvider(model)
