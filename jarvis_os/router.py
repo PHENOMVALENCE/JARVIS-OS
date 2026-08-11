@@ -6,6 +6,7 @@ import re
 from urllib.parse import quote_plus
 
 from .commands import Command, Risk
+from .facts import calculate, convert
 
 
 WAKE_NAME = re.compile(
@@ -68,6 +69,40 @@ class CommandRouter:
         normalized = re.sub(r"\s+", " ", raw.lower()).strip(" .!?")
         if not normalized:
             return Command("noop", raw_text=raw)
+
+        # Questions the computer can answer exactly, with no model round trip.
+        if re.fullmatch(r"(?:what(?:'s| is)\s+)?(?:the\s+)?time(?:\s+is\s+it)?|what time is it(?:\s+now)?|tell me the time", normalized):
+            return Command("current_time", raw_text=raw)
+
+        if re.fullmatch(
+            r"(?:what(?:'s| is)\s+)?(?:the\s+|today'?s\s+)?date(?:\s+today)?"
+            r"|what(?:'s| is) today(?:'s date)?|what day is it(?:\s+today)?|tell me the date",
+            normalized,
+        ):
+            return Command("current_date", raw_text=raw)
+
+        if re.search(r"\bbattery\b", normalized) and re.match(r"(?:what|how|check|tell|is|show)\b", normalized):
+            return Command("battery", raw_text=raw)
+
+        if re.search(r"\b(?:disk|drive|storage)\s+space\b|\bhow much (?:disk|drive|storage|space)\b|\bfree space\b", normalized):
+            return Command("disk_space", raw_text=raw)
+
+        match = re.match(
+            r"(?:convert\s+)?([-\d.]+)\s*([a-z]+)\s+(?:in|to|into)\s+([a-z]+)$", normalized
+        )
+        if match and self._convertible(match.group(2), match.group(3)):
+            return Command(
+                "convert",
+                {"value": float(match.group(1)), "source": match.group(2), "target": match.group(3)},
+                raw_text=raw,
+            )
+
+        arithmetic = re.match(
+            r"(?:what(?:'s| is)|calculate|compute|work out|how much is)\s+(.+)", normalized
+        )
+        candidate = arithmetic.group(1) if arithmetic else normalized
+        if calculate(candidate) is not None:
+            return Command("calculate", {"expression": candidate}, raw_text=raw)
 
         # Grounded spoken answer from live sources.
         match = re.match(
@@ -213,6 +248,10 @@ class CommandRouter:
             return Command("delete_path", {"path": match.group(1)}, Risk.HIGH, raw)
 
         return Command("chat", {"message": raw}, raw_text=raw)
+
+    @staticmethod
+    def _convertible(source: str, target: str) -> bool:
+        return convert(1.0, source, target) is not None
 
     @classmethod
     def _folder(cls, value: str) -> str:

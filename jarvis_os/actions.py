@@ -12,6 +12,7 @@ from typing import Callable
 from urllib.parse import quote
 
 from .commands import ActionResult, Command
+from .facts import FactService
 from .router import browser_search_url
 from .web_research import WebResearch
 
@@ -53,6 +54,7 @@ class WindowsActions:
         self.openai_api_key = openai_api_key
         self.knowledge = knowledge
         self.web_research_service = web_research or WebResearch()
+        self.facts = FactService(self.home)
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -83,6 +85,12 @@ class WindowsActions:
             "semantic_search": self.semantic_search,
             "install_package": self.install_package,
             "upgrade_package": self.upgrade_package,
+            "current_time": self.facts.current_time,
+            "current_date": self.facts.current_date,
+            "calculate": self.facts.calculate,
+            "convert": self.facts.convert,
+            "battery": self.facts.battery,
+            "disk_space": self.facts.disk_space,
         }
 
     def execute(self, command: Command) -> ActionResult:
