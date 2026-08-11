@@ -22,7 +22,7 @@ from .workflow_ui import WorkflowWindow
 from .knowledge import KnowledgeIndex
 from .proactive import ProactiveScheduler
 from .user_presence import SecuritySession
-from .setup_ui import FirstRunWizard
+from .setup_ui import SetupWizard
 from .updates import UpdateChecker
 from . import __version__
 from .wake_word import make_wake_word
@@ -110,7 +110,9 @@ class JarvisApp:
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
         if not self.settings_repo.get("first_run_complete", False):
-            self.root.after(250, lambda: FirstRunWizard(self.root, self.settings_repo))
+            self.root.after(250, lambda: SetupWizard(
+                self.root, self.settings_repo, self.settings.project_root, self.speech_engine
+            ))
         threading.Thread(target=self._check_updates, daemon=True, name="jarvis-updates").start()
         threading.Thread(target=self._warm_model, daemon=True, name="jarvis-warmup").start()
 
