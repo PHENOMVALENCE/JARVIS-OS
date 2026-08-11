@@ -79,6 +79,16 @@ class CommandRouter:
         if not normalized:
             return Command("noop", raw_text=raw)
 
+        if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
+            return Command("undo_delete", raw_text=raw)
+
+        if re.fullmatch(r"(?:do (?:that|it) again|again|repeat that|same again|one more time)", normalized):
+            return Command("repeat_last", raw_text=raw)
+
+        match = re.fullmatch(r"(?:what|how) about\s+(.+)", normalized)
+        if match:
+            return Command("follow_up", {"subject": match.group(1).strip()}, raw_text=raw)
+
         # Weather has its own free provider; encyclopedic search cannot answer it.
         # An explicit request for browser results still wins over the shortcut.
         wants_browser = _EXPLICIT_BROWSER_SEARCH.match(normalized)
@@ -300,6 +310,34 @@ class CommandRouter:
 
 def browser_search_url(query: str) -> str:
     return f"https://www.google.com/search?q={quote_plus(query)}"
+
+
+# The argument each action treats as its subject, for "what about ..." follow-ups.
+FOLLOW_UP_ARGUMENT = {
+    "weather": "place", "forecast": "place",
+    "web_research": "query", "web_search": "query",
+    "semantic_search": "query", "find_files": "query",
+    "open_app": "name", "open_folder": "path",
+}
+
+_EXPLICIT_CHAIN = re.compile(r"\s+and\s+then\s+", re.IGNORECASE)
+_LOOSE_CHAIN = re.compile(r"\s+and\s+(?=(?:also\s+)?(?:open|launch|start|close|play|type|search|find|take|read|set|turn|show|copy)\b)", re.IGNORECASE)
+
+
+def split_commands(text: str) -> list[str]:
+    """Split "open Notepad and then type hello" into separate requests.
+
+    Only splits on an explicit "and then", or on "and" directly before a word
+    that starts a command, so "search for cats and dogs" stays one request.
+    """
+    value = str(text).strip()
+    if not value:
+        return []
+    parts = _EXPLICIT_CHAIN.split(value)
+    if len(parts) == 1:
+        parts = _LOOSE_CHAIN.split(value)
+    cleaned = [part.strip(" ,.") for part in parts]
+    return [part for part in cleaned if part] or [value]
 
 
 # A local model answers from frozen training weights, so anything time-sensitive

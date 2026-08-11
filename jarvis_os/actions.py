@@ -59,6 +59,7 @@ class WindowsActions:
         self.facts = FactService(self.home)
         self.file_search = FileSearch(self.home)
         self.weather_service = weather or WeatherService()
+        self.last_deleted: Path | None = None
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -98,6 +99,7 @@ class WindowsActions:
             "weather": self.weather,
             "forecast": self.forecast,
             "read_screen": self.read_screen,
+            "undo_delete": self.undo_delete,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -295,7 +297,38 @@ class WindowsActions:
         if path == self.home or self.home not in path.parents:
             return ActionResult(False, "Deletion is limited to items inside your user folder.")
         send2trash(str(path))
-        return ActionResult(True, f"Moved {path.name} to the Recycle Bin.")
+        self.last_deleted = path
+        return ActionResult(True, f"Moved {path.name} to the Recycle Bin. Say undo that to put it back.")
+
+    # "Restore" as Windows spells it in a few common locales.
+    _RESTORE_VERBS = {"restore", "undelete", "wiederherstellen", "restaurer", "restaurar", "ripristina"}
+
+    def undo_delete(self, _args: dict) -> ActionResult:
+        """Put back whatever was last moved to the Recycle Bin."""
+        path = self.last_deleted
+        if path is None:
+            return ActionResult(False, "I have not deleted anything this session.")
+        if path.exists():
+            return ActionResult(True, f"{path.name} is already back in place.")
+        try:
+            import win32com.client
+        except ImportError:
+            return ActionResult(False, "Restoring needs pywin32. Open the Recycle Bin to restore it by hand.")
+        try:
+            recycle_bin = win32com.client.Dispatch("Shell.Application").Namespace(10)
+            items = recycle_bin.Items()
+            for index in range(items.Count):
+                item = items.Item(index)
+                if item.Name.lower() != path.name.lower():
+                    continue
+                for verb in item.Verbs():
+                    if verb.Name.replace("&", "").strip().lower() in self._RESTORE_VERBS:
+                        verb.DoIt()
+                        self.last_deleted = None
+                        return ActionResult(True, f"Restored {path.name}.")
+        except Exception as exc:
+            return ActionResult(False, f"I could not restore {path.name}: {exc}")
+        return ActionResult(False, f"I could not find {path.name} in the Recycle Bin.")
 
     @staticmethod
     def _matching_window(title: str) -> int | None:

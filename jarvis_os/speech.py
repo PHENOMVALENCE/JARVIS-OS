@@ -279,11 +279,17 @@ class HandsFreeListener:
         on_text: Callable[[str], None],
         on_state: Callable[[str], None],
         speaking: threading.Event,
+        barge_in: bool = False,
+        on_interrupt: Callable[[], None] | None = None,
     ):
         self.listen_once = listen_once
         self.on_text = on_text
         self.on_state = on_state
         self.speaking = speaking
+        # Without acoustic echo cancellation the microphone hears the speakers,
+        # so listening over playback only works on headphones. Opt in.
+        self.barge_in = barge_in
+        self.on_interrupt = on_interrupt
         self.enabled = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -308,15 +314,22 @@ class HandsFreeListener:
         while not self._stop.is_set():
             if not self.enabled.wait(0.2):
                 continue
-            if self.speaking.is_set():
+            interrupting = self.speaking.is_set()
+            if interrupting and not self.barge_in:
                 self.on_state("speaking")
                 time.sleep(0.15)
                 continue
             try:
                 self.on_state("listening")
                 text = self.listen_once()
-                if text and self.enabled.is_set() and not self.speaking.is_set():
-                    self.on_text(text)
+                if not text or not self.enabled.is_set():
+                    continue
+                if self.speaking.is_set():
+                    if not self.barge_in:
+                        continue
+                    if self.on_interrupt:
+                        self.on_interrupt()
+                self.on_text(text)
             except Exception as exc:
                 self.on_state(f"error: {exc}")
                 self.enabled.clear()

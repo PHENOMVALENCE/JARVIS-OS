@@ -95,6 +95,8 @@ class JarvisApp:
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
             lambda state: self.root.after(0, lambda: self._voice_state(state)),
             self.speech_engine.activity,
+            barge_in=bool(self.settings_repo.get("voice_barge_in", False)),
+            on_interrupt=self.stop_speaking,
         )
 
         self._configure_window()
@@ -211,6 +213,12 @@ class JarvisApp:
         self.entry.pack(side="left", fill="x", expand=True, ipady=9, padx=(5, 10))
         self.entry.bind("<Return>", self.submit)
         self.entry.focus_set()
+        self.root.bind("<Escape>", self.stop_speaking)
+        tk.Button(
+            input_panel, text="STOP", command=self.stop_speaking, bg="#3a1c28", fg="#ff9aa8",
+            activebackground="#52212f", activeforeground=TEXT, relief="flat",
+            font=("Segoe UI Semibold", 9), padx=13, pady=9, cursor="hand2",
+        ).pack(side="left", padx=(0, 8))
         tk.Button(
             input_panel, text="MIC", command=self.listen, bg="#183149", fg=ACCENT,
             activebackground="#244866", activeforeground=TEXT, relief="flat",
@@ -323,9 +331,15 @@ class JarvisApp:
         if hasattr(self, "session_detail"):
             self.session_detail.configure(text=f"{text.title()}\nSecure session active")
 
+    def stop_speaking(self, _event=None) -> str:
+        """Cut off the reply in progress. Interrupting should always be possible."""
+        self.speech_engine.silence()
+        return "break"
+
     def submit(self, _event=None) -> str:
         text = self.entry.get().strip()
         if text:
+            self.stop_speaking()
             self.entry.delete(0, "end")
             self.add_message("YOU", text)
             self.set_status("working")
@@ -337,6 +351,7 @@ class JarvisApp:
         return VoiceInput(VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model))
 
     def listen(self) -> None:
+        self.stop_speaking()
         self.set_status("listening")
         if self.voice is None:
             self.voice = self._make_voice_input()

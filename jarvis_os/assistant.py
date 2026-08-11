@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .commands import Command
-from .router import CommandRouter, needs_live_information
+from .router import FOLLOW_UP_ARGUMENT, CommandRouter, needs_live_information, split_commands
 from .security import SecureExecutor
 from .settings import Settings
 
@@ -142,6 +142,7 @@ class AssistantController:
         self.workflows = workflows
         self.settings_repo = settings_repo
         self._last_action_context: str | None = None
+        self._last_command: Command | None = None
 
     def _auto_web_enabled(self) -> bool:
         return not self.settings_repo or bool(self.settings_repo.get("auto_web_answers", True))
@@ -181,6 +182,23 @@ class AssistantController:
             return SYSTEM_PROMPT
         return f"{SYSTEM_PROMPT}\n\nRecent system activity: {self._last_action_context}"
 
+    def _resolve_follow_up(self, command: Command) -> Command | AssistantReply:
+        """Turn "again" and "what about Berlin" into the command they refer to."""
+        if command.action == "repeat_last":
+            if not self._last_command:
+                return AssistantReply("There is nothing to repeat yet.")
+            return self._last_command
+        if command.action != "follow_up":
+            return command
+        subject = str(command.arguments.get("subject", "")).strip()
+        argument = FOLLOW_UP_ARGUMENT.get(self._last_command.action) if self._last_command else None
+        if not self._last_command or not argument or not subject:
+            # Nothing to carry over, so treat it as ordinary conversation.
+            return Command("chat", {"message": command.raw_text}, raw_text=command.raw_text)
+        arguments = dict(self._last_command.arguments)
+        arguments[argument] = subject
+        return Command(self._last_command.action, arguments, self._last_command.risk, command.raw_text)
+
     def _upgrade_to_live_answer(self, command: Command) -> tuple[Command, bool]:
         """Send time-sensitive questions to live sources instead of stale weights."""
         if command.action != "chat" or not self._auto_web_enabled():
@@ -191,6 +209,19 @@ class AssistantController:
         return Command("web_research", {"query": question}, raw_text=command.raw_text), True
 
     def process(self, text: str, spoken: bool = False, on_chunk: Callable[[str], None] | None = None) -> AssistantReply:
+        steps = split_commands(text)
+        if len(steps) > 1 and all(self._is_action(step) for step in steps):
+            messages = [self._process_one(step, spoken).text for step in steps]
+            return AssistantReply(" ".join(messages))
+        return self._process_one(text, spoken, on_chunk)
+
+    def _is_action(self, text: str) -> bool:
+        """True when a fragment stands on its own as a command, not conversation."""
+        command = self.plugins.route(text) if self.plugins else None
+        command = command or self.router.route(text)
+        return command.action not in {"chat", "noop", "follow_up", "repeat_last"}
+
+    def _process_one(self, text: str, spoken: bool = False, on_chunk: Callable[[str], None] | None = None) -> AssistantReply:
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
             result = self.workflows.run(workflow)
@@ -198,8 +229,12 @@ class AssistantController:
             return AssistantReply(result.message)
         command = self.plugins.route(text) if self.plugins else None
         command = command or self.router.route(text)
-        command, auto_research = self._upgrade_to_live_answer(command)
+        resolved = self._resolve_follow_up(command)
+        if isinstance(resolved, AssistantReply):
+            return resolved
+        command, auto_research = self._upgrade_to_live_answer(resolved)
         if command.action != "chat":
+            self._last_command = command
             if command.action == "analyze_screen":
                 command.arguments["context"] = self._conversation_context()
             result = self.executor.execute(command)

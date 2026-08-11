@@ -61,6 +61,7 @@ class SettingsWindow(tk.Toplevel):
         self.hands_free = tk.BooleanVar(value=values.get("hands_free_enabled", True))
         self.auto_web = tk.BooleanVar(value=values.get("auto_web_answers", True))
         self.mic_extended = tk.BooleanVar(value=values.get("mic_extended_listening", True))
+        self.barge_in = tk.BooleanVar(value=values.get("voice_barge_in", False))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
@@ -70,6 +71,7 @@ class SettingsWindow(tk.Toplevel):
             ("Listen for the 'Jarvis' wake word (requires PORCUPINE_API_KEY)", self.wake_word),
             ("Hands-free conversation (continuously listen when not speaking)", self.hands_free),
             ("Check the web automatically for time-sensitive questions", self.auto_web),
+            ("Interrupt by voice while speaking (use headphones, or it hears itself)", self.barge_in),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -229,6 +231,7 @@ class SettingsWindow(tk.Toplevel):
             "wake_word_enabled": self.wake_word.get(),
             "hands_free_enabled": self.hands_free.get(),
             "auto_web_answers": self.auto_web.get(),
+            "voice_barge_in": self.barge_in.get(),
             "tts_voice": self.tts_voice.get().strip() or "david",
             "tts_rate": int(self.tts_rate.get()),
             "tts_engine": self.tts_engine.get().strip() or "edge",

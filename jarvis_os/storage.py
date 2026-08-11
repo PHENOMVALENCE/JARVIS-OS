@@ -130,6 +130,7 @@ class SettingsRepository:
         "model_keep_alive": "30m",
         "stt_backend": "faster_whisper",
         "home_location": "",
+        "voice_barge_in": False,
     }
 
     def __init__(self, database: Database):
