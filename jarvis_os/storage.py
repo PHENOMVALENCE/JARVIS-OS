@@ -114,6 +114,19 @@ class SettingsRepository:
         "tts_engine": "edge",
         "edge_voice": "en-GB-RyanNeural",
         "auto_web_answers": True,
+        "vision_model": "gpt-4o",
+        "openai_chat_model": "gpt-4o-mini",
+        "conversation_memory_limit": 40,
+        "mic_energy": 180,
+        "mic_pause": 1.25,
+        "mic_timeout": 18,
+        "mic_continuation_timeout": 6,
+        "mic_continuation_passes": 2,
+        "mic_dynamic_energy": True,
+        "mic_hallucinate_threshold": 140,
+        "mic_extended_listening": True,
+        "mic_device_index": None,
+        "wake_word_sensitivity": 0.55,
     }
 
     def __init__(self, database: Database):

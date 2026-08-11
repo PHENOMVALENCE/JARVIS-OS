@@ -29,6 +29,10 @@ Speech uses Microsoft Edge neural voices by default. They are free, need no API 
 
 Choose the engine and voice under **SETTINGS → General**. `edge` is the natural neural voice (default `en-GB-RyanNeural`); `windows` is the fully offline SAPI voice.
 
+## Listening
+
+Natural speech contains pauses, and a microphone that stops at the first one truncates the request. **Extended listening** keeps capturing for a short window after you pause and joins the pieces, so "open the... budget spreadsheet" arrives as one command. Tune microphone sensitivity, pause length, listen timeout, wake-word sensitivity, and the conversation memory window under **SETTINGS → General**.
+
 ## Web sources
 
 Live answers come from documented public APIs, never from scraping. With no key configured J.A.R.V.I.S uses the DuckDuckGo Instant Answer API and the Wikipedia REST API, which answer definitional and encyclopedic questions well but cover breaking news poorly. Set `SERPAPI_API_KEY` in `.env` for full current-events coverage.

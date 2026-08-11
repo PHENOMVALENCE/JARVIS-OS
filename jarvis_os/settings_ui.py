@@ -58,6 +58,7 @@ class SettingsWindow(tk.Toplevel):
         self.wake_word = tk.BooleanVar(value=values.get("wake_word_enabled", False))
         self.hands_free = tk.BooleanVar(value=values.get("hands_free_enabled", True))
         self.auto_web = tk.BooleanVar(value=values.get("auto_web_answers", True))
+        self.mic_extended = tk.BooleanVar(value=values.get("mic_extended_listening", True))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
@@ -103,6 +104,27 @@ class SettingsWindow(tk.Toplevel):
         ttk.Label(frame, text="Speech rate (words per minute)").pack(anchor="w", pady=(12, 2))
         self.tts_rate = ttk.Spinbox(frame, from_=100, to=260)
         self.tts_rate.set(values.get("tts_rate", 178)); self.tts_rate.pack(fill="x")
+        ttk.Label(frame, text="Vision model (screen analysis)").pack(anchor="w", pady=(16, 2))
+        self.vision_model = ttk.Combobox(frame, values=("gpt-4o", "gpt-4o-mini"), state="readonly")
+        self.vision_model.set(values.get("vision_model", "gpt-4o"))
+        self.vision_model.pack(fill="x")
+        ttk.Label(frame, text="Microphone sensitivity (lower = more sensitive)").pack(anchor="w", pady=(12, 2))
+        self.mic_energy = ttk.Spinbox(frame, from_=80, to=600)
+        self.mic_energy.set(values.get("mic_energy", 180)); self.mic_energy.pack(fill="x")
+        ttk.Label(frame, text="Pause before ending speech (seconds)").pack(anchor="w", pady=(12, 2))
+        self.mic_pause = ttk.Spinbox(frame, from_=0.5, to=3.0, increment=0.1)
+        self.mic_pause.set(values.get("mic_pause", 1.25)); self.mic_pause.pack(fill="x")
+        ttk.Label(frame, text="Listen timeout (seconds)").pack(anchor="w", pady=(12, 2))
+        self.mic_timeout = ttk.Spinbox(frame, from_=8, to=45)
+        self.mic_timeout.set(values.get("mic_timeout", 18)); self.mic_timeout.pack(fill="x")
+        ttk.Checkbutton(frame, text="Extended listening (capture trailing words after pauses)",
+                        variable=self.mic_extended).pack(anchor="w", pady=5)
+        ttk.Label(frame, text="Wake word sensitivity (higher = easier to trigger)").pack(anchor="w", pady=(12, 2))
+        self.wake_sensitivity = ttk.Spinbox(frame, from_=0.1, to=1.0, increment=0.05)
+        self.wake_sensitivity.set(values.get("wake_word_sensitivity", 0.55)); self.wake_sensitivity.pack(fill="x")
+        ttk.Label(frame, text="Conversation memory window (messages)").pack(anchor="w", pady=(12, 2))
+        self.memory_limit = ttk.Spinbox(frame, from_=10, to=80)
+        self.memory_limit.set(values.get("conversation_memory_limit", 40)); self.memory_limit.pack(fill="x")
         ttk.Label(frame, text="Work mode apps (comma separated)").pack(anchor="w", pady=(12, 2))
         self.work_apps = ttk.Entry(frame)
         self.work_apps.insert(0, ", ".join(values["work_apps"]))
@@ -205,6 +227,13 @@ class SettingsWindow(tk.Toplevel):
             "tts_rate": int(self.tts_rate.get()),
             "tts_engine": self.tts_engine.get().strip() or "edge",
             "edge_voice": self.edge_voice.get().strip() or DEFAULT_EDGE_VOICE,
+            "vision_model": self.vision_model.get(),
+            "mic_energy": int(self.mic_energy.get()),
+            "mic_pause": float(self.mic_pause.get()),
+            "mic_timeout": int(self.mic_timeout.get()),
+            "mic_extended_listening": self.mic_extended.get(),
+            "wake_word_sensitivity": float(self.wake_sensitivity.get()),
+            "conversation_memory_limit": int(self.memory_limit.get()),
         }
         for key, value in values.items():
             self.settings_repo.set(key, value)

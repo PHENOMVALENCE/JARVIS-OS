@@ -7,10 +7,11 @@ import threading
 
 
 class WakeWordListener:
-    def __init__(self, access_key: str, callback, keyword: str = "jarvis"):
+    def __init__(self, access_key: str, callback, keyword: str = "jarvis", sensitivity: float = 0.55):
         self.access_key = access_key
         self.callback = callback
         self.keyword = keyword
+        self.sensitivity = max(0.0, min(1.0, float(sensitivity)))
         self.stop_event = threading.Event()
         self.thread = None
 
@@ -30,7 +31,11 @@ class WakeWordListener:
         import pvporcupine
         engine = stream = audio = None
         try:
-            engine = pvporcupine.create(access_key=self.access_key, keywords=[self.keyword])
+            engine = pvporcupine.create(
+                access_key=self.access_key,
+                keywords=[self.keyword],
+                sensitivities=[self.sensitivity],
+            )
             audio = pyaudio.PyAudio()
             stream = audio.open(
                 rate=engine.sample_rate, channels=1, format=pyaudio.paInt16,
