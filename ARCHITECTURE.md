@@ -18,7 +18,9 @@ The desktop runtime is intentionally split into small layers:
 
 - `Mark_7.py` enforces a single instance and starts the app; `Mark_6.py` remains a compatibility launcher.
 - `jarvis_os/app.py` owns the Tk desktop UI, tray icon, worker queues, speech output, and confirmations.
-- `jarvis_os/router.py` maps common natural language to typed commands without model involvement.
+- `jarvis_os/router.py` maps common natural language to typed commands without model involvement. It strips the spoken wake name and politeness first, and exposes `needs_live_information` so the controller can send time-sensitive questions to live sources instead of stale model weights.
+- `jarvis_os/web_research.py` grounds answers using documented public APIs only (SerpAPI when a key is present, otherwise the DuckDuckGo Instant Answer and Wikipedia REST APIs). A failing provider degrades the answer rather than breaking it.
+- `jarvis_os/speech.py` queues speech off the UI thread, preferring Edge neural voices and falling back to offline SAPI.
 - `jarvis_os/actions.py` contains explicit Windows capabilities. It does not expose a general shell tool.
 - `jarvis_os/security.py` applies risk policy and records every local action in SQLite.
 - `jarvis_os/assistant.py` handles Ollama/OpenAI conversation, persistent history, and lazy Whisper input.

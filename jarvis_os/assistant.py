@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from .router import CommandRouter
+from .commands import Command
+from .router import CommandRouter, needs_live_information
 from .security import SecureExecutor
 from .settings import Settings
 
@@ -107,6 +108,18 @@ class AssistantController:
         self.workflows = workflows
         self.settings_repo = settings_repo
 
+    def _auto_web_enabled(self) -> bool:
+        return not self.settings_repo or bool(self.settings_repo.get("auto_web_answers", True))
+
+    def _upgrade_to_live_answer(self, command: Command) -> tuple[Command, bool]:
+        """Send time-sensitive questions to live sources instead of stale weights."""
+        if command.action != "chat" or not self._auto_web_enabled():
+            return command, False
+        question = str(command.arguments.get("message", "")).strip()
+        if not question or not needs_live_information(question):
+            return command, False
+        return Command("web_research", {"query": question}, raw_text=command.raw_text), True
+
     def process(self, text: str, spoken: bool = False) -> AssistantReply:
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
@@ -114,6 +127,7 @@ class AssistantController:
             return AssistantReply(result.message)
         command = self.plugins.route(text) if self.plugins else None
         command = command or self.router.route(text)
+        command, auto_research = self._upgrade_to_live_answer(command)
         if command.action != "chat":
             result = self.executor.execute(command)
             details = result.data.get("matches") if result.data else None
@@ -133,7 +147,11 @@ class AssistantController:
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nWeb results:\n{context}"},
                 ])
                 return AssistantReply(answer, details)
-            return AssistantReply(result.message, details)
+            if not auto_research:
+                return AssistantReply(result.message, details)
+            # The user asked a normal question, so answer conversationally rather
+            # than reporting a search failure they never asked for.
+            text = str(command.arguments["query"])
         memory_enabled = not self.settings_repo or self.settings_repo.get("conversation_memory", True)
         if memory_enabled:
             self.store.append("user", text)

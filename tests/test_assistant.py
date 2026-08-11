@@ -55,6 +55,33 @@ class AssistantControllerTests(unittest.TestCase):
         self.provider.reply.assert_called_once()
         self.assertIn("plan.pdf#page=2", self.provider.reply.call_args.args[0][1]["content"])
 
+    def test_time_sensitive_question_is_answered_from_live_sources(self):
+        self.executor.execute.return_value = ActionResult(
+            True, "Found web sources.", {"matches": ["SOURCE: Met\nURL: https://met.example\nSUMMARY: 24C and clear"]}
+        )
+        reply = self.controller.process("What is the weather today")
+        self.assertEqual(self.executor.execute.call_args.args[0].action, "web_research")
+        self.assertEqual(reply.text, "Hello there.")
+        self.assertIn("https://met.example", self.provider.reply.call_args.args[0][1]["content"])
+
+    def test_timeless_question_stays_conversational(self):
+        self.controller.process("What is the meaning of AI")
+        self.executor.execute.assert_not_called()
+        self.provider.reply.assert_called_once()
+
+    def test_failed_automatic_search_falls_back_to_conversation(self):
+        self.executor.execute.return_value = ActionResult(False, "Web research failed: no internet.")
+        reply = self.controller.process("What is the weather today")
+        self.assertEqual(reply.text, "Hello there.")
+        self.assertNotIn("failed", reply.text)
+
+    def test_automatic_search_can_be_disabled(self):
+        settings = Mock()
+        settings.get.side_effect = lambda key, default=None: False if key == "auto_web_answers" else default
+        controller = AssistantController(self.executor, self.store, self.provider, settings_repo=settings)
+        controller.process("What is the weather today")
+        self.executor.execute.assert_not_called()
+
     def test_web_research_synthesizes_source_grounded_answer(self):
         self.executor.execute.return_value = ActionResult(
             True, "Found web sources.", {"matches": ["SOURCE: Example\nURL: https://example.com\nSUMMARY: Current facts"]}

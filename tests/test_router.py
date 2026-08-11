@@ -1,7 +1,7 @@
 import unittest
 
 from jarvis_os.commands import Risk
-from jarvis_os.router import CommandRouter, strip_wake_name
+from jarvis_os.router import CommandRouter, needs_live_information, strip_wake_name
 
 
 class CommandRouterTests(unittest.TestCase):
@@ -82,6 +82,20 @@ class CommandRouterTests(unittest.TestCase):
     def test_browser_results_stay_separate_from_spoken_research(self):
         self.assertEqual(self.router.route("Show me the results for python tutorials").action, "web_search")
         self.assertEqual(self.router.route("Browse for python tutorials").action, "web_search")
+
+    def test_detects_questions_that_need_live_sources(self):
+        for question in ("What is the weather today", "Whats the news",
+                         "Who won the match last night", "Is the new Dune movie out yet",
+                         "Who is the current president of Tanzania",
+                         "What is the exchange rate for the dollar"):
+            self.assertTrue(needs_live_information(question), question)
+
+    def test_leaves_timeless_questions_to_the_model(self):
+        for question in ("What is the meaning of AI", "Explain quantum computing",
+                         "What is the capital of France", "Why is the sky blue",
+                         "Who was Isaac Newton", "How are you",
+                         "I am currently working on a project"):
+            self.assertFalse(needs_live_information(question), question)
 
     def test_package_management_is_high_risk(self):
         command = self.router.route("Install package VideoLAN.VLC")

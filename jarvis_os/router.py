@@ -222,3 +222,57 @@ class CommandRouter:
 
 def browser_search_url(query: str) -> str:
     return f"https://www.google.com/search?q={quote_plus(query)}"
+
+
+# A local model answers from frozen training weights, so anything time-sensitive
+# needs live sources instead. These patterns stay deliberately narrow: a false
+# positive turns ordinary conversation into a search engine.
+_RECENCY = re.compile(
+    r"""\b(?:
+        today|tonight|tomorrow|yesterday|right\s+now|currently|current|now
+      | latest|newest|most\s+recent|recent|recently|so\s+far
+      | this\s+(?:week|month|year|morning|afternoon|evening)
+      | last\s+(?:night|week|month|year)
+      | at\s+the\s+moment|these\s+days|nowadays|up[-\s]to[-\s]date
+      | breaking|live|upcoming|still\s+(?:alive|open|running)
+      | 20[2-9]\d
+    )\b""",
+    re.VERBOSE,
+)
+
+_VOLATILE = re.compile(
+    r"""(?:
+        \bweather\b|\bforecast\b|\btemperature\s+(?:in|at|of)\b
+      | \bprice\s+of\b|\bhow\s+much\s+(?:is|are|does|do)\b|\bcost\s+of\b
+      | \bstock\s+price\b|\bshare\s+price\b|\bexchange\s+rate\b|\bworth\s+now\b
+      | \bwho\s+won\b|\bwho\s+is\s+winning\b|\bscore\s+(?:of|in|for)\b|\bfinal\s+score\b
+      | \belection\s+results?\b|\bwho\s+is\s+the\s+(?:current\s+)?(?:president|prime\s+minister|ceo|champion)\b
+      | \bnews\b|\bheadlines\b|\bwhat(?:'s|\s+is)\s+happening\b
+      | \brelease\s+date\b|\bout\s+yet\b|\bwhen\s+(?:is|does)\s+.+\s+(?:release|launch|come\s+out)\b
+    )""",
+    re.VERBOSE,
+)
+
+_ASKING = re.compile(
+    r"""^(?:
+        who|what|whats|what's|when|where|which|why|how|is|are|was|were
+      | do|does|did|can|could|should|will|would|has|have|any
+      | tell\s+me|show\s+me|give\s+me|remind\s+me\s+what
+    )\b""",
+    re.VERBOSE,
+)
+
+
+def needs_live_information(text: str) -> bool:
+    """True when a question depends on facts the local model cannot know.
+
+    Explicit phrasings ("research X", "look up X") are handled by the router.
+    This covers the questions people ask without thinking to say "search".
+    """
+    normalized = re.sub(r"\s+", " ", str(text).lower()).strip()
+    if not normalized:
+        return False
+    asking = bool(_ASKING.match(normalized)) or normalized.endswith("?")
+    if not asking:
+        return False
+    return bool(_VOLATILE.search(normalized)) or bool(_RECENCY.search(normalized))

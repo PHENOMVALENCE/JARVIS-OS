@@ -152,7 +152,11 @@ class WindowsActions:
             return ActionResult(False, f"Web research failed: {exc}")
         passages = [item.passage() for item in results]
         if not passages:
-            return ActionResult(False, f"I could not find reliable web results for {query}.")
+            hint = "" if self.web_research_service.has_full_web_access else (
+                " Without SERPAPI_API_KEY I can only reach encyclopedic sources, "
+                "which do not cover current events well."
+            )
+            return ActionResult(False, f"I could not find reliable web results for {query}.{hint}")
         return ActionResult(True, f"Found {len(passages)} web sources for {query}.", {"matches": passages})
 
     def find_files(self, args: dict) -> ActionResult:

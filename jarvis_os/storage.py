@@ -113,6 +113,7 @@ class SettingsRepository:
         "tts_voice": "david",
         "tts_engine": "edge",
         "edge_voice": "en-GB-RyanNeural",
+        "auto_web_answers": True,
     }
 
     def __init__(self, database: Database):
