@@ -9,12 +9,14 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from .security import AuditLog
-from .speech import DEFAULT_EDGE_VOICE, EDGE_VOICES
+from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, EDGE_VOICES, PIPER_VOICES
 from .storage import PermissionRepository, SettingsRepository
 
 
 ACTIONS = (
     "open_app", "open_folder", "find_files", "web_search", "web_research", "spotify_play",
+    "weather", "forecast", "read_screen", "current_time", "current_date",
+    "calculate", "convert", "battery", "disk_space",
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
     "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
     "close_app", "delete_path", "index_documents", "semantic_search",
@@ -59,15 +61,17 @@ class SettingsWindow(tk.Toplevel):
         self.hands_free = tk.BooleanVar(value=values.get("hands_free_enabled", True))
         self.auto_web = tk.BooleanVar(value=values.get("auto_web_answers", True))
         self.mic_extended = tk.BooleanVar(value=values.get("mic_extended_listening", True))
+        self.barge_in = tk.BooleanVar(value=values.get("voice_barge_in", False))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
             ("Privacy mode (blocks capture and cloud features)", self.privacy),
             ("Proactive reminders and system health alerts", self.proactive),
             ("Require Windows Hello for high-risk actions", self.hello),
-            ("Listen for the 'Jarvis' wake word (requires PORCUPINE_API_KEY)", self.wake_word),
+            ("Listen for the 'Hey Jarvis' wake word", self.wake_word),
             ("Hands-free conversation (continuously listen when not speaking)", self.hands_free),
             ("Check the web automatically for time-sensitive questions", self.auto_web),
+            ("Interrupt by voice while speaking (use headphones, or it hears itself)", self.barge_in),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -79,14 +83,19 @@ class SettingsWindow(tk.Toplevel):
         self.whisper.set(values["whisper_model"])
         self.whisper.pack(fill="x")
         ttk.Label(frame, text="Voice engine").pack(anchor="w", pady=(16, 2))
-        self.tts_engine = ttk.Combobox(frame, values=("edge", "windows"), state="readonly")
+        self.tts_engine = ttk.Combobox(frame, values=("piper", "edge", "windows"), state="readonly")
         self.tts_engine.set(values.get("tts_engine", "edge"))
         self.tts_engine.pack(fill="x")
         ttk.Label(
             frame,
-            text="edge = natural neural voice (needs internet); windows = offline SAPI voice",
-            foreground="#555555",
+            text="piper = offline neural, fastest (downloads a 63 MB voice once)\n"
+                 "edge = neural, needs internet;  windows = offline SAPI",
+            foreground="#555555", justify="left",
         ).pack(anchor="w")
+        ttk.Label(frame, text="Offline neural voice (used when the engine is 'piper')").pack(anchor="w", pady=(12, 2))
+        self.piper_voice = ttk.Combobox(frame, values=tuple(PIPER_VOICES), state="readonly")
+        self.piper_voice.set(values.get("piper_voice", DEFAULT_PIPER_VOICE))
+        self.piper_voice.pack(fill="x")
         ttk.Label(frame, text="Neural voice (used when the engine is 'edge')").pack(anchor="w", pady=(12, 2))
         self.edge_voice = ttk.Combobox(frame, values=tuple(EDGE_VOICES), state="readonly")
         self.edge_voice.set(values.get("edge_voice", DEFAULT_EDGE_VOICE))
@@ -104,7 +113,11 @@ class SettingsWindow(tk.Toplevel):
         ttk.Label(frame, text="Speech rate (words per minute)").pack(anchor="w", pady=(12, 2))
         self.tts_rate = ttk.Spinbox(frame, from_=100, to=260)
         self.tts_rate.set(values.get("tts_rate", 178)); self.tts_rate.pack(fill="x")
-        ttk.Label(frame, text="Vision model (screen analysis)").pack(anchor="w", pady=(16, 2))
+        ttk.Label(frame, text="Home location (used when you ask for the weather)").pack(anchor="w", pady=(16, 2))
+        self.home_location = ttk.Entry(frame)
+        self.home_location.insert(0, values.get("home_location", ""))
+        self.home_location.pack(fill="x")
+        ttk.Label(frame, text="Vision model (screen analysis)").pack(anchor="w", pady=(12, 2))
         self.vision_model = ttk.Combobox(frame, values=("gpt-4o", "gpt-4o-mini"), state="readonly")
         self.vision_model.set(values.get("vision_model", "gpt-4o"))
         self.vision_model.pack(fill="x")
@@ -119,6 +132,12 @@ class SettingsWindow(tk.Toplevel):
         self.mic_timeout.set(values.get("mic_timeout", 18)); self.mic_timeout.pack(fill="x")
         ttk.Checkbutton(frame, text="Extended listening (capture trailing words after pauses)",
                         variable=self.mic_extended).pack(anchor="w", pady=5)
+        ttk.Label(frame, text="Wake word backend").pack(anchor="w", pady=(12, 2))
+        self.wake_backend = ttk.Combobox(frame, values=("openwakeword", "porcupine"), state="readonly")
+        self.wake_backend.set(values.get("wake_word_backend", "openwakeword"))
+        self.wake_backend.pack(fill="x")
+        ttk.Label(frame, text="openwakeword needs no account; porcupine needs PORCUPINE_API_KEY",
+                  foreground="#555555").pack(anchor="w")
         ttk.Label(frame, text="Wake word sensitivity (higher = easier to trigger)").pack(anchor="w", pady=(12, 2))
         self.wake_sensitivity = ttk.Spinbox(frame, from_=0.1, to=1.0, increment=0.05)
         self.wake_sensitivity.set(values.get("wake_word_sensitivity", 0.55)); self.wake_sensitivity.pack(fill="x")
@@ -223,11 +242,15 @@ class SettingsWindow(tk.Toplevel):
             "wake_word_enabled": self.wake_word.get(),
             "hands_free_enabled": self.hands_free.get(),
             "auto_web_answers": self.auto_web.get(),
+            "voice_barge_in": self.barge_in.get(),
             "tts_voice": self.tts_voice.get().strip() or "david",
             "tts_rate": int(self.tts_rate.get()),
             "tts_engine": self.tts_engine.get().strip() or "edge",
             "edge_voice": self.edge_voice.get().strip() or DEFAULT_EDGE_VOICE,
+            "piper_voice": self.piper_voice.get().strip() or DEFAULT_PIPER_VOICE,
+            "wake_word_backend": self.wake_backend.get(),
             "vision_model": self.vision_model.get(),
+            "home_location": self.home_location.get().strip(),
             "mic_energy": int(self.mic_energy.get()),
             "mic_pause": float(self.mic_pause.get()),
             "mic_timeout": int(self.mic_timeout.get()),

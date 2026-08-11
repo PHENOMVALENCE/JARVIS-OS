@@ -25,13 +25,33 @@ The first launch presents a privacy-focused setup wizard. Local semantic search 
 
 ## Voice output
 
-Speech uses Microsoft Edge neural voices by default. They are free, need no API key, and sound close to a human speaker. Synthesis requires an internet connection, so J.A.R.V.I.S falls back to the offline Windows SAPI voice when it cannot reach the service, and stops retrying after a few failures so a lost connection does not slow every reply.
+Three engines, chosen under **SETTINGS → General**. Each falls back to the next if it cannot run, so J.A.R.V.I.S never goes silent.
 
-Choose the engine and voice under **SETTINGS → General**. `edge` is the natural neural voice (default `en-GB-RyanNeural`); `windows` is the fully offline SAPI voice.
+| Engine | Sounds like | Needs internet | Speed |
+|---|---|---|---|
+| `piper` | Offline neural, British male | No | Fastest — 0.25s for ~4s of speech once warm |
+| `edge` | Microsoft neural, British male (default) | Yes | ~2s per reply |
+| `windows` | SAPI, robotic | No | Instant but clearly synthetic |
+
+`piper` downloads a 63 MB voice on first use and is warmed during startup, so the first reply is not the slow one. It is both the fastest option and the only one that works with no connection at all.
+
+## Speed
+
+Replies stream: tokens are collected into sentences and spoken as they complete, rather than after the whole answer is written. The local model is loaded at startup and kept resident, because loading it costs far more than generating an answer — cold, the first token took 15.4s; warm, 0.9s. Together the first spoken sentence arrives about 4s after asking.
+
+Questions the computer can answer exactly never reach the model at all. Time, date, arithmetic, percentages, unit and temperature conversion, battery, and disk space all return in under a millisecond.
 
 ## Listening
 
 Natural speech contains pauses, and a microphone that stops at the first one truncates the request. **Extended listening** keeps capturing for a short window after you pause and joins the pieces, so "open the... budget spreadsheet" arrives as one command. Tune microphone sensitivity, pause length, listen timeout, wake-word sensitivity, and the conversation memory window under **SETTINGS → General**.
+
+The **"Hey Jarvis"** wake word runs locally through openWakeWord and needs no account or key. Porcupine remains selectable if you already have a `PORCUPINE_API_KEY`.
+
+Interrupting always works: press **STOP**, hit **Escape**, start typing, or press **MIC**. Interrupting by voice while it speaks is available under Settings but off by default — without echo cancellation the microphone hears the speakers, so it only works on headphones.
+
+## Conversation
+
+Follow-ups resolve against the last command, so `What's the weather in London` followed by `what about Berlin` asks about Berlin, and `do that again` repeats. `Undo that` restores the last file sent to the Recycle Bin. Requests can be chained: `open Notepad and then take a screenshot` runs both in order.
 
 ## Web sources
 

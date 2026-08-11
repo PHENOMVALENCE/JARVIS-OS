@@ -6,6 +6,7 @@ import re
 from urllib.parse import quote_plus
 
 from .commands import Command, Risk
+from .facts import calculate, convert
 
 
 WAKE_NAME = re.compile(
@@ -50,6 +51,15 @@ def strip_wake_name(text: str) -> str:
     return TRAILING_POLITENESS.sub("", value).strip() or str(text).strip()
 
 
+_EXPLICIT_BROWSER_SEARCH = re.compile(
+    r"^(?:search\s+(?:the\s+)?(?:web|internet|google)\s+for"
+    r"|google\s"
+    r"|browse\s+for"
+    r"|(?:open|show(?:\s+me)?)\s+(?:the\s+)?.*results\s+for)\b",
+    re.IGNORECASE,
+)
+
+
 class CommandRouter:
     """Route common commands locally and leave general conversation to the LLM."""
 
@@ -68,6 +78,80 @@ class CommandRouter:
         normalized = re.sub(r"\s+", " ", raw.lower()).strip(" .!?")
         if not normalized:
             return Command("noop", raw_text=raw)
+
+        if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
+            return Command("undo_delete", raw_text=raw)
+
+        if re.fullmatch(r"(?:do (?:that|it) again|again|repeat that|same again|one more time)", normalized):
+            return Command("repeat_last", raw_text=raw)
+
+        match = re.fullmatch(r"(?:what|how) about\s+(.+)", normalized)
+        if match:
+            return Command("follow_up", {"subject": match.group(1).strip()}, raw_text=raw)
+
+        # Weather has its own free provider; encyclopedic search cannot answer it.
+        # An explicit request for browser results still wins over the shortcut.
+        wants_browser = _EXPLICIT_BROWSER_SEARCH.match(normalized)
+        if not wants_browser and (
+            re.search(r"\b(?:weather|forecast)\b", normalized)
+            or re.match(r"(?:is|will) it (?:going to )?(?:rain|snow|be (?:hot|cold|warm|sunny))", normalized)
+        ):
+            place = ""
+            location = re.search(
+                r"\b(?:in|for|at)\s+(.+?)"
+                r"(?:\s+(?:today|tonight|tomorrow|this week|next week|this weekend|right now))?$",
+                normalized,
+            )
+            if location:
+                place = location.group(1).strip()
+            ahead = re.search(
+                r"\bforecast\b|\bthis week\b|\bnext (?:few days|week)\b|\btomorrow\b|\bweekend\b|\bcoming days\b",
+                normalized,
+            )
+            return Command("forecast" if ahead else "weather", {"place": place}, raw_text=raw)
+
+        match = re.match(
+            r"(?:read|what does)\s+(?:the\s+)?screen(?:\s+say)?(?:\s+(.+))?$"
+            r"|read (?:the )?(?:text|words) on (?:my |the )?screen"
+            r"|what does (?:it|this) say(?: on (?:my |the )?screen)?",
+            normalized,
+        )
+        if match:
+            return Command("read_screen", {"query": (match.group(1) or "").strip()}, Risk.MEDIUM, raw)
+
+        # Questions the computer can answer exactly, with no model round trip.
+        if re.fullmatch(r"(?:what(?:'s| is)\s+)?(?:the\s+)?time(?:\s+is\s+it)?|what time is it(?:\s+now)?|tell me the time", normalized):
+            return Command("current_time", raw_text=raw)
+
+        if re.fullmatch(
+            r"(?:what(?:'s| is)\s+)?(?:the\s+|today'?s\s+)?date(?:\s+today)?"
+            r"|what(?:'s| is) today(?:'s date)?|what day is it(?:\s+today)?|tell me the date",
+            normalized,
+        ):
+            return Command("current_date", raw_text=raw)
+
+        if re.search(r"\bbattery\b", normalized) and re.match(r"(?:what|how|check|tell|is|show)\b", normalized):
+            return Command("battery", raw_text=raw)
+
+        if re.search(r"\b(?:disk|drive|storage)\s+space\b|\bhow much (?:disk|drive|storage|space)\b|\bfree space\b", normalized):
+            return Command("disk_space", raw_text=raw)
+
+        match = re.match(
+            r"(?:convert\s+)?([-\d.]+)\s*([a-z]+)\s+(?:in|to|into)\s+([a-z]+)$", normalized
+        )
+        if match and self._convertible(match.group(2), match.group(3)):
+            return Command(
+                "convert",
+                {"value": float(match.group(1)), "source": match.group(2), "target": match.group(3)},
+                raw_text=raw,
+            )
+
+        arithmetic = re.match(
+            r"(?:what(?:'s| is)|calculate|compute|work out|how much is)\s+(.+)", normalized
+        )
+        candidate = arithmetic.group(1) if arithmetic else normalized
+        if calculate(candidate) is not None:
+            return Command("calculate", {"expression": candidate}, raw_text=raw)
 
         # Grounded spoken answer from live sources.
         match = re.match(
@@ -214,6 +298,10 @@ class CommandRouter:
 
         return Command("chat", {"message": raw}, raw_text=raw)
 
+    @staticmethod
+    def _convertible(source: str, target: str) -> bool:
+        return convert(1.0, source, target) is not None
+
     @classmethod
     def _folder(cls, value: str) -> str:
         cleaned = value.strip().lower()
@@ -222,6 +310,34 @@ class CommandRouter:
 
 def browser_search_url(query: str) -> str:
     return f"https://www.google.com/search?q={quote_plus(query)}"
+
+
+# The argument each action treats as its subject, for "what about ..." follow-ups.
+FOLLOW_UP_ARGUMENT = {
+    "weather": "place", "forecast": "place",
+    "web_research": "query", "web_search": "query",
+    "semantic_search": "query", "find_files": "query",
+    "open_app": "name", "open_folder": "path",
+}
+
+_EXPLICIT_CHAIN = re.compile(r"\s+and\s+then\s+", re.IGNORECASE)
+_LOOSE_CHAIN = re.compile(r"\s+and\s+(?=(?:also\s+)?(?:open|launch|start|close|play|type|search|find|take|read|set|turn|show|copy)\b)", re.IGNORECASE)
+
+
+def split_commands(text: str) -> list[str]:
+    """Split "open Notepad and then type hello" into separate requests.
+
+    Only splits on an explicit "and then", or on "and" directly before a word
+    that starts a command, so "search for cats and dogs" stays one request.
+    """
+    value = str(text).strip()
+    if not value:
+        return []
+    parts = _EXPLICIT_CHAIN.split(value)
+    if len(parts) == 1:
+        parts = _LOOSE_CHAIN.split(value)
+    cleaned = [part.strip(" ,.") for part in parts]
+    return [part for part in cleaned if part] or [value]
 
 
 # A local model answers from frozen training weights, so anything time-sensitive

@@ -1,5 +1,9 @@
 comtypes==1.4.8
 edge-tts==7.2.8
+faster-whisper==1.2.1
+piper-tts==1.6.0
+openwakeword==0.6.0
+onnxruntime==1.28.0
 cvzone==1.6.1
 elevenlabs==1.50.3
 etext==0.0.1
@@ -15,7 +19,7 @@ opencv_contrib_python==4.10.0.84
 opencv_python==4.10.0.84
 Pillow==11.1.0
 openpyxl==3.1.5
-protobuf==4.25.3
+protobuf==4.25.9
 pvporcupine==3.0.3
 PyAudio==0.2.14
 pycaw==20240210
@@ -35,7 +39,15 @@ spotipy==2.24.0
 torch==2.5.1
 wxPython==4.2.2
 winotify==1.1.0
+pywin32==312
 winrt-Windows.Security.Credentials.UI==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.Globalization==3.2.1
+winrt-Windows.Graphics.Imaging==3.2.1
+winrt-Windows.Media.Ocr==3.2.1
+winrt-Windows.Storage==3.2.1
+winrt-Windows.Storage.Streams==3.2.1
 python-dotenv==1.1.0
 Send2Trash==1.8.3
 whisper_mic
