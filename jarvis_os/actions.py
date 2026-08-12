@@ -5,6 +5,7 @@ from __future__ import annotations
 import ctypes
 import os
 import subprocess
+import time
 import webbrowser
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +13,8 @@ from typing import Callable
 from urllib.parse import quote
 
 from .commands import ActionResult, Command
-from .diagnostics_log import recent_problems
+from .context import SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, ContextEngine
+from .diagnostics_log import failure, recent_problems
 from .facts import FactService
 from .file_search import FileSearch
 from .music import SpotifyControl
@@ -51,7 +53,7 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None, context=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
@@ -63,6 +65,7 @@ class WindowsActions:
         self.weather_service = weather or WeatherService()
         self.last_deleted: Path | None = None
         self.reminders = reminders
+        self.context = context or ContextEngine(settings_repo)
         self.music = SpotifyControl(self.data_dir / 'spotify-token.json')
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
@@ -109,6 +112,10 @@ class WindowsActions:
             "list_reminders": self.list_reminders,
             "clear_reminders": self.clear_reminders,
             "now_playing": self.now_playing,
+            "close_window": self.close_window,
+            "context_window_state": self.context_window_state,
+            "describe_context": self.describe_context,
+            "open_containing_folder": self.open_containing_folder,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -116,9 +123,13 @@ class WindowsActions:
         if not handler:
             return ActionResult(False, f"Unsupported action: {command.action}")
         try:
-            return handler(command.arguments)
+            result = handler(command.arguments)
         except Exception as exc:
-            return ActionResult(False, f"{command.action} failed: {exc}")
+            failure("action", exc, command.action)
+            result = ActionResult(False, f"{command.action} failed: {exc}")
+        # Remember what was acted on, so "that" and "again" have a referent.
+        self.context.note_action(command.action, result.success, result.message)
+        return result
 
     def _resolve_path(self, value: str) -> Path:
         value = value.strip().strip('"')
@@ -135,7 +146,52 @@ class WindowsActions:
         if not path.is_dir():
             return ActionResult(False, f"Folder not found: {path}")
         os.startfile(str(path))
+        self.context.note_target(folder=path)
         return ActionResult(True, f"Opened {path.name or path}.", {"path": str(path)})
+
+    def close_window(self, args: dict) -> ActionResult:
+        """Close whatever the user means by "this", and confirm that it closed.
+
+        A close request is sent to the window rather than killing the process,
+        so the application can prompt about unsaved work.
+        """
+        window = self.context.resolve_window(str(args.get("hint", "")))
+        if window is None:
+            return ActionResult(False, "I could not tell which window you mean.")
+        user32 = ctypes.windll.user32
+        user32.PostMessageW(window.handle, 0x0010, 0, 0)  # WM_CLOSE
+        name = window.title or window.process or "that window"
+        # Verify rather than assuming the message was honoured.
+        for _ in range(12):
+            time.sleep(0.1)
+            if not user32.IsWindow(window.handle):
+                return ActionResult(True, f"Closed {name}.")
+        return ActionResult(
+            False, f"{name} did not close. It may be asking you about unsaved work."
+        )
+
+    def context_window_state(self, args: dict) -> ActionResult:
+        """Minimise, maximise, or restore the window a request refers to."""
+        operation = str(args["operation"])
+        window = self.context.resolve_window(str(args.get("hint", "")))
+        if window is None:
+            return ActionResult(False, "I could not tell which window you mean.")
+        codes = {"minimize": SW_MINIMIZE, "maximize": SW_MAXIMIZE, "restore": SW_RESTORE}
+        ctypes.windll.user32.ShowWindow(window.handle, codes[operation])
+        self.context.note_target(window=window)
+        name = window.title or window.process or "that window"
+        return ActionResult(True, f"{operation.title()}d {name}.")
+
+    def describe_context(self, _args: dict) -> ActionResult:
+        return ActionResult(True, self.context.describe())
+
+    def open_containing_folder(self, _args: dict) -> ActionResult:
+        """"Open the folder this file is in", using the last file referred to."""
+        folder = self.context.resolve_folder()
+        if folder is None:
+            return ActionResult(False, "I do not have a recent file to work from.")
+        os.startfile(str(folder))
+        return ActionResult(True, f"Opened {folder.name or folder}.")
 
     def open_app(self, args: dict) -> ActionResult:
         name = str(args["name"]).strip().lower()
