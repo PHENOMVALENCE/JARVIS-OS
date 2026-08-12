@@ -35,6 +35,7 @@ from .earcons import Earcons
 from .language import SWAHILI, voice_for
 from .live_transcribe import LiveTranscriber
 from .reminders import ReminderService, ReminderStore
+from .response_policy import Delivery, ResponsePolicy
 from .orb import OrbCaption, VoiceOrb
 from .theme import Palette, Space, Type, state_style
 from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
@@ -107,6 +108,7 @@ class JarvisApp:
             self.settings_repo, self.settings.whisper_model
         )
         self.earcons = Earcons(bool(self.settings_repo.get('earcons_enabled', True)))
+        self.response_policy = ResponsePolicy(self.settings_repo)
         self.hands_free = HandsFreeListener(
             self._listen_once,
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
@@ -562,7 +564,8 @@ class JarvisApp:
                 self._streaming = False
                 self._sentences = SentenceBuffer()
                 reply = self.controller.process(text, spoken=spoken, on_chunk=self._queue_chunk)
-                self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
+                action = getattr(self.controller, "last_action", "")
+                self.root.after(0, lambda r=reply, a=action: self._deliver(r.text, r.details, a, spoken))
             except Exception as exc:
                 failure("worker", exc)
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))
@@ -597,18 +600,29 @@ class JarvisApp:
             for sentence in self._sentences.push(chunk):
                 self.speech_engine.say(sentence)
 
-    def _deliver(self, text: str, details: list[str] | None) -> None:
+    def _deliver(self, text: str, details: list[str] | None,
+                 action: str = "", spoken_request: bool = False) -> None:
         if self._streaming:
             remainder = self._sentences.flush()
             if remainder and self._speaks():
                 self.speech_engine.say(remainder)
             self.end_message(details)
             self._streaming = False
-        else:
+            self.set_state("idle")
+            return
+        # An action result: say only as much as the outcome needs.
+        succeeded = not getattr(self.controller, "last_failed", False)
+        response = self.response_policy.for_action(action, succeeded, text, spoken_request)
+        if response.earcon:
+            self.earcons.play(response.earcon)
+        if response.shows:
             self.add_message("J.A.R.V.I.S", text, details)
-            if self._speaks():
-                self._match_voice_to_language()
-                self.speech_engine.say(text)
+        if response.speaks:
+            self._match_voice_to_language()
+            self.speech_engine.say(text)
+        if response.delivery is Delivery.EARCON:
+            # Still record it, so the transcript remains a complete history.
+            self.add_message("J.A.R.V.I.S", text, details)
         self.set_state("idle")
 
     def _voice_state(self, state: str) -> None:

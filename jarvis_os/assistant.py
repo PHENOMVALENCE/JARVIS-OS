@@ -145,6 +145,8 @@ class AssistantController:
         self._last_action_context: str | None = None
         self._last_command: Command | None = None
         self.last_language = "en"
+        self.last_action = ""
+        self.last_failed = False
 
     def _auto_web_enabled(self) -> bool:
         return not self.settings_repo or bool(self.settings_repo.get("auto_web_answers", True))
@@ -242,6 +244,10 @@ class AssistantController:
         return command.action not in {"chat", "noop", "follow_up", "repeat_last"}
 
     def _process_one(self, text: str, spoken: bool = False, on_chunk: Callable[[str], None] | None = None) -> AssistantReply:
+        # Reset per request; the response policy reads these to decide how
+        # loudly to report the outcome.
+        self.last_action = ""
+        self.last_failed = False
         text = self._prepare(text)
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
@@ -256,9 +262,11 @@ class AssistantController:
         command, auto_research = self._upgrade_to_live_answer(resolved)
         if command.action != "chat":
             self._last_command = command
+            self.last_action = command.action
             if command.action == "analyze_screen":
                 command.arguments["context"] = self._conversation_context()
             result = self.executor.execute(command)
+            self.last_failed = not result.success
             details = result.data.get("matches") if result.data else None
             self._last_action_context = f"{command.action} -> {result.message[:240]}"
             if command.action == "semantic_search" and result.success and details:
@@ -293,6 +301,8 @@ class AssistantController:
             # The user asked a normal question, so answer conversationally rather
             # than reporting a search failure they never asked for.
             text = str(command.arguments["query"])
+        self.last_action = ""
+        self.last_failed = False
         memory_enabled = self._memory_enabled()
         if memory_enabled:
             self.store.append("user", text)
