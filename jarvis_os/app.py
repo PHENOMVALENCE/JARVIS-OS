@@ -37,6 +37,7 @@ from .earcons import Earcons
 from .health import HealthService
 from .language import SWAHILI, voice_for
 from .live_transcribe import LiveTranscriber
+from .models import ModelManager
 from .recovery_state import InstanceLock, RecoveryState
 from .reminders import ReminderService, ReminderStore
 from .response_policy import Delivery, ResponsePolicy
@@ -71,8 +72,10 @@ class JarvisApp:
         )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
         self.context = ContextEngine(self.settings_repo)
+        self.models = ModelManager(self.settings.project_root / "models", self.settings_repo)
         self.health = HealthService(
-            self.settings_repo, self.settings.data_dir, self.context, build_registry()
+            self.settings_repo, self.settings.data_dir, self.context, build_registry(),
+            models=self.models,
         )
         self.reminders = ReminderService(
             ReminderStore(database), speak=lambda text: self.speech_engine.say(text)
@@ -112,6 +115,11 @@ class JarvisApp:
             piper_voice=str(self.settings_repo.get("piper_voice", DEFAULT_PIPER_VOICE)),
             models_dir=self.settings.project_root / "models",
         )
+        # Attached after construction because both are built later; without
+        # them the health checks report subsystems as unconfigured that are
+        # actually running.
+        self.health.reminders = self.reminders
+        self.health.speech_engine = self.speech_engine
         self._streaming = False
         self._sentences = SentenceBuffer()
         self._pulse = 0.0

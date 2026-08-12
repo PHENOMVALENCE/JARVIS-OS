@@ -156,6 +156,31 @@ class OnnxOrderingRegressionTests(unittest.TestCase):
 
         with patch.dict("sys.modules", {"onnxruntime": None}):
             ScreenTextReader._preload_onnxruntime()  # must not raise
+class ModelHealthTests(unittest.TestCase):
+    def _service(self, models):
+        settings = Mock()
+        settings.get.side_effect = lambda key, default=None: default
+        return HealthService(settings, Path(tempfile.gettempdir()), models=models)
+
+    def test_no_manager_is_not_configured_rather_than_failed(self):
+        self.assertIs(self._service(None).check_models().status, Status.NOT_CONFIGURED)
+
+    def test_a_missing_download_is_degraded_with_a_way_forward(self):
+        models = Mock()
+        models.health.return_value = {"status": "DEGRADED", "detail": "Not downloaded: llama3.1:8b"}
+        check = self._service(models).check_models()
+        self.assertIs(check.status, Status.DEGRADED)
+        self.assertTrue(check.remedy)
+
+    def test_a_missing_runtime_points_at_ollama(self):
+        models = Mock()
+        models.health.return_value = {"status": "NOT CONFIGURED", "detail": "Ollama is not installed."}
+        self.assertIn("ollama.com", self._service(models).check_models().remedy)
+
+    def test_everything_installed_reports_ok(self):
+        models = Mock()
+        models.health.return_value = {"status": "OK", "detail": "All configured models are installed."}
+        self.assertIs(self._service(models).check_models().status, Status.OK)
 
 if __name__ == "__main__":
     unittest.main()
