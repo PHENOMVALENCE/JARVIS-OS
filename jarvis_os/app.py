@@ -545,15 +545,15 @@ class JarvisApp:
             current.apply(wanted)
 
     def _listen_once(self) -> str:
+        """Capture one phrase. Drafts are optional; the recogniser is not.
+
+        faster-whisper handles both paths, so turning drafts off no longer
+        swaps in a second engine that dragged a gigabyte of torch behind it.
+        """
         with self._voice_lock:
-            if self.settings_repo.get("live_transcription", True):
-                self._refresh_transcriber()
-                return self.live_transcriber.listen(self._on_partial)
-            if self.voice is None:
-                self.voice = self._make_voice_input()
-            else:
-                self.voice.config = VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model)
-            return self.voice.listen()
+            self._refresh_transcriber()
+            drafts = bool(self.settings_repo.get("live_transcription", True))
+            return self.live_transcriber.listen(self._on_partial if drafts else None)
 
     def _listen_worker(self) -> None:
         try:

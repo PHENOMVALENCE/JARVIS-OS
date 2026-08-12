@@ -82,17 +82,43 @@ offer to open the download page, and let setup continue so the rest of the
 assistant is configured. Deterministic commands, weather, screen reading, and
 reminders all work without a language model.
 
+## Verifying a build
+
+A successful PyInstaller run is not evidence that the bundle works. This
+codebase imports heavy dependencies inside functions so startup stays fast, and
+PyInstaller follows imports statically, so a build can launch happily and then
+fail the first time somebody speaks or reads the screen.
+
+`jarvis_os/selftest.py` imports every lazily-loaded dependency in the order the
+running application would, and the executable runs it when `JARVIS_SELFTEST` is
+set. Both `Build-Release.ps1` and the release workflow fail the build when it
+reports a missing subsystem, so an incomplete bundle never reaches a release.
+
+The order in that list is load-bearing: onnxruntime is imported before the
+Windows Runtime, because initialising WinRT first breaks onnxruntime's DLL
+load and silently disables the wake word and the offline voice.
+
+## Releasing
+
+`.github/workflows/release.yml` builds from a tag on a clean runner, runs the
+test suite, builds the application, runs the frozen self-test, produces the
+installer, records SHA-256 checksums, and attaches everything to a draft
+release. Publishing stays a human decision.
+
 ## Outstanding work
 
-1. Point `Build-Release.ps1` at the current dependency set. onnxruntime, piper,
-   openwakeword, and the winrt packages were added after it was last touched
-   and need explicit PyInstaller hidden imports and binary collection.
-2. Move the model download out of first-launch and into the wizard's model
-   step, so the size is stated before it is spent.
-3. Checksum-verify downloaded models before use.
-4. Sign the installer. Unsigned Windows installers trigger SmartScreen, which
-   is the single largest obstacle to a non-technical install.
-5. Publish the artifact from CI on a tag rather than from a developer machine.
+1. **Sign the installer.** Unsigned Windows installers trigger SmartScreen,
+   which is the single largest obstacle to a non-technical install. The build
+   script already signs when `JARVIS_SIGN_CERTIFICATE` is set; it needs a
+   certificate.
+2. Move the model download into the wizard's model step so the size is stated
+   before it is spent. The model manager supports this; the wizard does not
+   call it yet.
+3. Checksum-verify downloaded models. Ollama verifies its own; the Piper voice
+   and recognition weights are currently taken on trust from their source.
+4. Decide whether to ship without `torch`. It is pulled in by `whisper_mic`,
+   but recognition runs through faster-whisper, and it is the largest single
+   contributor to the bundle.
 
-Items 1 and 4 are what stand between the current build and something that can
-be handed to somebody else.
+Item 1 is what stands between the current build and something that can be
+handed to somebody else.

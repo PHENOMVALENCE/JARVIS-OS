@@ -1,23 +1,76 @@
-name: build-release
+name: release
 
+# Builds the distributable from a tag, so a release comes from CI rather than
+# from whatever happened to be on a developer's machine.
 on:
-  workflow_dispatch:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  executable:
+  windows-build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m unittest discover -s tests -q
-      - run: pyinstaller --noconfirm --clean jarvis.spec
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run the test suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Build the application
+        run: python -m PyInstaller --noconfirm --clean jarvis.spec
+
+      # A successful build is not proof the bundle works: PyInstaller cannot
+      # see imports made inside functions, and this codebase makes many.
+      - name: Verify the frozen build loads every subsystem
+        env:
+          JARVIS_SELFTEST: "1"
+        run: |
+          & "dist\JARVIS\JARVIS.exe"
+          if ($LASTEXITCODE -ne 0) { throw "The frozen build failed its self-test." }
+
+      - name: Build the installer
+        run: |
+          $inno = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (Test-Path $inno) { & $inno installer.iss } else { throw "Inno Setup is missing from the runner." }
+
+      - name: Record checksums
+        run: |
+          Get-FileHash installer-output\*.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } |
+            Out-File installer-output\SHA256SUMS.txt -Encoding utf8
+          Get-Content installer-output\SHA256SUMS.txt
+
       - uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Mark-7-windows
-          path: dist/JARVIS-Mark-7/
+          name: JARVIS-Setup-x64
+          path: |
+            installer-output/*.exe
+            installer-output/SHA256SUMS.txt
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer-output/*.exe
+            installer-output/SHA256SUMS.txt
+          draft: true
+          body: |
+            Unsigned build. Windows SmartScreen will warn on first run until
+            the installer is signed.
+
+            Verify the download against `SHA256SUMS.txt` before installing.
