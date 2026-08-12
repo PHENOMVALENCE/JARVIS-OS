@@ -52,13 +52,15 @@ class HealthService:
     """Runs every subsystem check and summarises the result."""
 
     def __init__(self, settings_repo=None, data_dir: Path | None = None,
-                 context=None, registry=None, speech_engine=None, reminders=None):
+                 context=None, registry=None, speech_engine=None, reminders=None,
+                 models=None):
         self.settings_repo = settings_repo
         self.data_dir = data_dir or Path.cwd() / "data"
         self.context = context
         self.registry = registry
         self.speech_engine = speech_engine
         self.reminders = reminders
+        self.models = models
 
     def _setting(self, key: str, default=None):
         return self.settings_repo.get(key, default) if self.settings_repo else default
@@ -210,6 +212,19 @@ class HealthService:
         return Check("Capabilities", Status.OK,
                      f"{total} actions, {total - unverified} with success checks")
 
+    def check_models(self) -> Check:
+        """Whether the models the settings ask for are actually downloaded."""
+        if self.models is None:
+            return Check("Models", Status.NOT_CONFIGURED, "No model manager is attached.")
+        result = self.models.health()
+        status = Status(result.get("status", "FAILED"))
+        remedy = ""
+        if status is Status.DEGRADED:
+            remedy = "Run setup again, or ask J.A.R.V.I.S to install the recommended model."
+        elif status is Status.NOT_CONFIGURED:
+            remedy = "Install Ollama from ollama.com to run the language model locally."
+        return Check("Models", status, result.get("detail", ""), remedy)
+
     def check_disk(self) -> Check:
         try:
             free = shutil.disk_usage(str(self.data_dir.anchor or self.data_dir)).free / (1024 ** 3)
@@ -260,7 +275,8 @@ class HealthService:
             self.check_wake_word, self.check_language_model, self.check_screen_reading,
             self.check_file_search, self.check_ui_automation, self.check_context,
             self.check_network, self.check_research, self.check_reminders,
-            self.check_capabilities, self.check_disk, self.check_memory, self.check_audit_log,
+            self.check_capabilities, self.check_models, self.check_disk, self.check_memory,
+            self.check_audit_log,
         )
         results = []
         for check in checks:

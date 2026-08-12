@@ -13,7 +13,7 @@ from typing import Callable
 from urllib.parse import quote
 
 from .capabilities import build_registry
-from .commands import ActionResult, Command
+from .commands import ActionResult, Command, Risk
 from .context import SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, ContextEngine
 from .diagnostics_log import failure, recent_problems
 from .facts import FactService
@@ -54,7 +54,7 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None, context=None, health=None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None, context=None, health=None, recovery=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
@@ -69,6 +69,7 @@ class WindowsActions:
         self.context = context or ContextEngine(settings_repo)
         self.registry = build_registry()
         self.health_service = health
+        self.recovery = recovery
         self.music = SpotifyControl(self.data_dir / 'spotify-token.json')
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
@@ -126,11 +127,18 @@ class WindowsActions:
         handler = self._handlers.get(command.action)
         if not handler:
             return ActionResult(False, f"Unsupported action: {command.action}")
+        # Note irreversible work before attempting it, so a crash mid-action
+        # leaves a record of what was in flight rather than a silent gap.
+        risky = command.risk is not Risk.LOW
+        if risky and self.recovery is not None:
+            self.recovery.note_in_flight(command.action, str(command.arguments)[:120])
         try:
             result = handler(command.arguments)
         except Exception as exc:
             failure("action", exc, command.action)
             result = ActionResult(False, f"{command.action} failed: {exc}")
+        if risky and self.recovery is not None:
+            self.recovery.clear_in_flight()
         result = self._verify(command, result)
         # Remember what was acted on, so "that" and "again" have a referent.
         self.context.note_action(command.action, result.success, result.message)

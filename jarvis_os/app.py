@@ -37,6 +37,8 @@ from .earcons import Earcons
 from .health import HealthService
 from .language import SWAHILI, voice_for
 from .live_transcribe import LiveTranscriber
+from .models import ModelManager
+from .recovery_state import InstanceLock, RecoveryState
 from .reminders import ReminderService, ReminderStore
 from .response_policy import Delivery, ResponsePolicy
 from .orb import OrbCaption, VoiceOrb
@@ -51,6 +53,10 @@ class JarvisApp:
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
         configure_logging(self.settings.data_dir)
         self.log = get_logger('app')
+        self.recovery = RecoveryState(self.settings.data_dir)
+        self.instance_lock = InstanceLock(self.settings.data_dir)
+        self.instance_lock.claim()
+        self._crashed_session = self.recovery.begin()
         self.work: queue.Queue[tuple[str, bool] | None] = queue.Queue()
         self.voice = None
         self._voice_lock = threading.Lock()
@@ -66,8 +72,10 @@ class JarvisApp:
         )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
         self.context = ContextEngine(self.settings_repo)
+        self.models = ModelManager(self.settings.project_root / "models", self.settings_repo)
         self.health = HealthService(
-            self.settings_repo, self.settings.data_dir, self.context, build_registry()
+            self.settings_repo, self.settings.data_dir, self.context, build_registry(),
+            models=self.models,
         )
         self.reminders = ReminderService(
             ReminderStore(database), speak=lambda text: self.speech_engine.say(text)
@@ -78,6 +86,7 @@ class JarvisApp:
                 data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
                 openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
                 reminders=self.reminders, context=self.context, health=self.health,
+                recovery=self.recovery,
             ),
             self.settings.data_dir,
         )
@@ -106,6 +115,11 @@ class JarvisApp:
             piper_voice=str(self.settings_repo.get("piper_voice", DEFAULT_PIPER_VOICE)),
             models_dir=self.settings.project_root / "models",
         )
+        # Attached after construction because both are built later; without
+        # them the health checks report subsystems as unconfigured that are
+        # actually running.
+        self.health.reminders = self.reminders
+        self.health.speech_engine = self.speech_engine
         self._streaming = False
         self._sentences = SentenceBuffer()
         self._pulse = 0.0
@@ -138,6 +152,7 @@ class JarvisApp:
             self.root.after(900, self.hands_free.start)
         self.proactive.start()
         self.add_message("J.A.R.V.I.S", "Systems online. Type a message or press the microphone button.")
+        self._report_previous_crash()
         if not self.settings_repo.get("first_run_complete", False):
             self.root.after(250, lambda: SetupWizard(
                 self.root, self.settings_repo, self.settings.project_root, self.speech_engine
@@ -538,15 +553,15 @@ class JarvisApp:
             current.apply(wanted)
 
     def _listen_once(self) -> str:
+        """Capture one phrase. Drafts are optional; the recogniser is not.
+
+        faster-whisper handles both paths, so turning drafts off no longer
+        swaps in a second engine that dragged a gigabyte of torch behind it.
+        """
         with self._voice_lock:
-            if self.settings_repo.get("live_transcription", True):
-                self._refresh_transcriber()
-                return self.live_transcriber.listen(self._on_partial)
-            if self.voice is None:
-                self.voice = self._make_voice_input()
-            else:
-                self.voice.config = VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model)
-            return self.voice.listen()
+            self._refresh_transcriber()
+            drafts = bool(self.settings_repo.get("live_transcription", True))
+            return self.live_transcriber.listen(self._on_partial if drafts else None)
 
     def _listen_worker(self) -> None:
         try:
@@ -729,6 +744,15 @@ class JarvisApp:
         self.add_message("J.A.R.V.I.S", "Emergency stop activated. Pending work was cleared and sensitive actions are locked.")
         self.set_state("stopped")
 
+    def _report_previous_crash(self) -> None:
+        """Say plainly that the last run ended badly, rather than pretending."""
+        if self._crashed_session is None:
+            return
+        note = self.recovery.report(build_registry())
+        if note:
+            self.log.warning(note)
+            self.add_message("J.A.R.V.I.S", note)
+
     def _warm_model(self) -> None:
         """Load the local model during startup so the first question is not slow."""
         self.speech_engine.warm()
@@ -778,6 +802,9 @@ class JarvisApp:
             self.emergency_hotkey.stop()
         self.wake_word.stop()
         self.proactive.stop()
+        # Record a clean exit; anything else is treated as a crash next start.
+        self.recovery.finish()
+        self.instance_lock.release()
         self.root.destroy()
 
 

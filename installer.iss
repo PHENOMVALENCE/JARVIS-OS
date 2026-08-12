@@ -1,17 +1,17 @@
-#define MyAppName "J.A.R.V.I.S Mark 7"
+#define MyAppName "J.A.R.V.I.S"
 #define MyAppVersion "7.0.0"
 #define MyAppPublisher "PHENOMVALENCE"
-#define MyAppExeName "JARVIS-Mark-7.exe"
+#define MyAppExeName "JARVIS.exe"
 
 [Setup]
 AppId={{8E4B839F-CA16-496B-B624-76A1C86FF0E8}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\JARVIS
+DefaultDirName={localappdata}\Programs\JARVIS
 DefaultGroupName={#MyAppName}
 OutputDir=installer-output
-OutputBaseFilename=JARVIS-Mark-7-Setup
+OutputBaseFilename=JARVIS-Setup-x64
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -20,7 +20,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
-Source: "dist\JARVIS-Mark-7\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\JARVIS\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
