@@ -184,10 +184,20 @@ class OrbCaption(tk.Frame):
                               fg=Palette.TEXT, font=Type.TITLE)
         self.title.pack()
         self.detail = tk.Label(self, text="or press the microphone", bg=parent["bg"],
-                               fg=Palette.TEXT_MUTED, font=Type.CAPTION)
+                               fg=Palette.TEXT_MUTED, font=Type.CAPTION, wraplength=420)
         self.detail.pack(pady=(2, 0))
+        self._live = ""
 
     def set_state(self, state: str) -> None:
+        self._live = ""
         title, detail = self.MESSAGES.get(state, self.MESSAGES["idle"])
         self.title.configure(text=title)
-        self.detail.configure(text=detail)
+        self.detail.configure(text=detail, fg=Palette.TEXT_MUTED)
+
+    def set_live_text(self, text: str) -> None:
+        """Show what is being heard, replacing the hint while speech arrives."""
+        self._live = text.strip()
+        if not self._live:
+            return
+        shown = self._live if len(self._live) <= 90 else "..." + self._live[-87:]
+        self.detail.configure(text=shown, fg=Palette.ACCENT)

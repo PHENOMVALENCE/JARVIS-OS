@@ -31,6 +31,7 @@ from .audio_level import MicrophoneLevel
 from .diagnostics_log import configure as configure_logging
 from .diagnostics_log import failure, get as get_logger
 from .earcons import Earcons
+from .live_transcribe import LiveTranscriber
 from .orb import OrbCaption, VoiceOrb
 from .theme import Palette, Space, Type, state_style
 from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
@@ -92,6 +93,9 @@ class JarvisApp:
         self._pulse = 0.0
         self._state = "idle"
         self.mic_level = MicrophoneLevel(self._on_level)
+        self.live_transcriber = LiveTranscriber.from_settings(
+            self.settings_repo, self.settings.whisper_model
+        )
         self.earcons = Earcons(bool(self.settings_repo.get('earcons_enabled', True)))
         self.hands_free = HandsFreeListener(
             self._listen_once,
@@ -491,8 +495,21 @@ class JarvisApp:
             text, colour = "Waiting for microphone", Palette.TEXT_FAINT
         self.mic_hint.configure(text=text, fg=colour)
 
+    def _on_partial(self, text: str) -> None:
+        """Draft text from the recogniser, shown while you are still talking."""
+        if not self._closing:
+            try:
+                self.root.after(0, lambda: self.orb_caption.set_live_text(text))
+            except (tk.TclError, RuntimeError):
+                pass
+
     def _listen_once(self) -> str:
         with self._voice_lock:
+            if self.settings_repo.get("live_transcription", True):
+                self.live_transcriber = LiveTranscriber.from_settings(
+                    self.settings_repo, self.settings.whisper_model
+                )
+                return self.live_transcriber.listen(self._on_partial)
             if self.voice is None:
                 self.voice = self._make_voice_input()
             else:
@@ -645,6 +662,7 @@ class JarvisApp:
     def _warm_model(self) -> None:
         """Load the local model during startup so the first question is not slow."""
         self.speech_engine.warm()
+        self.live_transcriber.warm()
         warm = getattr(self.controller.provider, "warm", None)
         if not callable(warm):
             return

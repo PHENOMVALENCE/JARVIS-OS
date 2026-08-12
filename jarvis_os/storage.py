@@ -134,6 +134,9 @@ class SettingsRepository:
         "piper_voice": "en_GB-alan-medium",
         "wake_word_backend": "openwakeword",
         "earcons_enabled": True,
+        "live_transcription": True,
+        "partial_whisper_model": "tiny",
+        "partial_interval": 1.2,
     }
 
     def __init__(self, database: Database):
