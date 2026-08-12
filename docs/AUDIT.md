@@ -129,3 +129,39 @@ main thing making the assistant feel like a chatbot rather than an operating lay
 4. Introduce a capability registry and close the permission gap (finding 5).
 5. Add a response policy (finding 6).
 6. Re-measure and record before/after.
+
+## Measured after the changes
+
+Same machine, same conditions.
+
+| | Before | After |
+|---|---|---|
+| Speech models reloaded per spoken request | yes, 2.35 s | no |
+| Settings read | 0.820 ms | 0.0004 ms |
+| Context snapshot, repeat within 1.5 s | n/a | 0.001 ms |
+| Context snapshot, fresh | n/a | 4.1 ms |
+| Route a command | — | 0.058 ms |
+| Route a question | — | 0.069 ms |
+| Capability lookup | — | under 0.001 ms |
+| Import the application module | — | 0.87 s |
+
+Routing and capability lookup are far below the threshold where a person would
+notice, which is what keeps deterministic requests off the language model.
+
+## Bugs found and fixed during this cycle
+
+1. **Speech models reloaded on every request** (finding 1). 2.35 s per spoken
+   request, introduced by the previous cycle's live-transcription work.
+2. **Reading the screen permanently disabled the wake word.** Initialising the
+   Windows Runtime for OCR before onnxruntime has loaded makes the first
+   onnxruntime DLL load fail. The wake word and the offline voice both run on
+   onnx, so a single screen read took out "Hey Jarvis" for the session, and it
+   failed silently by falling back to a backend with no key. Found only because
+   the health checks exercise OCR and the wake word in one process.
+3. **Four actions could not be permission-configured** (finding 5), because the
+   permissions screen kept its own list.
+4. **Two risk levels disagreed** between the router and the registry, caught by
+   the test asserting they must match. Undoing a delete was over-classified;
+   clearing all reminders was under-classified and now confirms.
+5. **The health reporter could fail while reporting a failure**, because it read
+   `__name__` from whatever it was given.
