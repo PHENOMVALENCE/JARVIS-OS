@@ -32,6 +32,7 @@ from .diagnostics_log import configure as configure_logging
 from .diagnostics_log import failure, get as get_logger
 from .earcons import Earcons
 from .live_transcribe import LiveTranscriber
+from .reminders import ReminderService, ReminderStore
 from .orb import OrbCaption, VoiceOrb
 from .theme import Palette, Space, Type, state_style
 from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
@@ -57,11 +58,15 @@ class JarvisApp:
             always_verify=bool(self.settings_repo.get("hello_for_high_risk", False)),
         )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
+        self.reminders = ReminderService(
+            ReminderStore(database), speak=lambda text: self.speech_engine.say(text)
+        )
         self.plugins = PluginManager(
             self.settings.project_root / "plugins", database,
             WindowsActions(
                 data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
                 openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
+                reminders=self.reminders,
             ),
             self.settings.data_dir,
         )
@@ -76,7 +81,9 @@ class JarvisApp:
         self.controller = AssistantController(
             executor, store, make_provider(self.settings, self.settings_repo), self.plugins, self.workflows, self.settings_repo
         )
-        self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
+        self.proactive = ProactiveScheduler(
+            database, self.settings_repo, self.workflows, reminders=self.reminders
+        )
         self.tray_icon = None
         self._closing = False
         self.speech_engine = SpeechEngine(
@@ -317,7 +324,9 @@ class JarvisApp:
         shortcuts.pack(fill="x", pady=(Space.MD, 0))
         tk.Label(shortcuts.body, text="SHORTCUTS", bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
                  font=Type.MONO_SMALL).pack(anchor="w", pady=(0, Space.SM))
-        for keys, meaning in (("Hey Jarvis", "wake by voice"), ("Esc", "stop speaking"),
+        for keys, meaning in (("Hey Jarvis", "wake by voice"),
+                              ("Ctrl+Alt+Space", "summon and listen"),
+                              ("Esc", "stop speaking"),
                               ("Ctrl+Alt+J", "emergency stop")):
             row = tk.Frame(shortcuts.body, bg=Palette.SURFACE)
             row.pack(fill="x", pady=2)
@@ -631,7 +640,12 @@ class JarvisApp:
     def _start_emergency_hotkey(self) -> None:
         try:
             from pynput.keyboard import GlobalHotKeys
-            self.emergency_hotkey = GlobalHotKeys({"<ctrl>+<alt>+j": lambda: self.root.after(0, self.emergency_stop)})
+            self.emergency_hotkey = GlobalHotKeys({
+                "<ctrl>+<alt>+j": lambda: self.root.after(0, self.emergency_stop),
+                # Summon: bring the window forward and start listening, which
+                # is the fastest route in when the microphone is paused.
+                "<ctrl>+<alt>+space": lambda: self.root.after(0, self.summon),
+            })
             self.emergency_hotkey.start()
         except Exception:
             self.emergency_hotkey = None
@@ -646,6 +660,13 @@ class JarvisApp:
         )
         if self.settings_repo.get("wake_word_enabled", False):
             self.wake_word.start()
+
+    def summon(self) -> None:
+        """Bring J.A.R.V.I.S forward and listen, from anywhere."""
+        self.log.info("Summoned by hotkey")
+        self.show_window()
+        self.earcons.play("wake")
+        self.listen()
 
     def emergency_stop(self) -> None:
         self.workflows.cancel()

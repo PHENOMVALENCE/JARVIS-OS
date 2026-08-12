@@ -82,6 +82,15 @@ class CommandRouter:
         if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log|any (?:errors|problems)|diagnostics)\b", normalized):
             return Command("show_problems", raw_text=raw)
 
+        if re.search(r"^(?:what|which|list|show|any)\b.*\breminders?\b|^my reminders$", normalized):
+            return Command("list_reminders", raw_text=raw)
+
+        if re.match(r"(?:remind me|set (?:a )?(?:reminder|timer)|wake me)\b", normalized):
+            return Command("add_reminder", {"text": raw}, raw_text=raw)
+
+        if re.fullmatch(r"(?:cancel|clear) (?:all )?(?:my )?reminders", normalized):
+            return Command("clear_reminders", raw_text=raw)
+
         if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
             return Command("undo_delete", raw_text=raw)
 

@@ -50,7 +50,7 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
@@ -61,6 +61,7 @@ class WindowsActions:
         self.file_search = FileSearch(self.home)
         self.weather_service = weather or WeatherService()
         self.last_deleted: Path | None = None
+        self.reminders = reminders
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -102,6 +103,9 @@ class WindowsActions:
             "read_screen": self.read_screen,
             "undo_delete": self.undo_delete,
             "show_problems": self.show_problems,
+            "add_reminder": self.add_reminder,
+            "list_reminders": self.list_reminders,
+            "clear_reminders": self.clear_reminders,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -209,6 +213,35 @@ class WindowsActions:
         if not answer:
             return ActionResult(False, f"I could not find a place called {place}.")
         return ActionResult(True, answer)
+
+    def add_reminder(self, args: dict) -> ActionResult:
+        if not self.reminders:
+            return ActionResult(False, "Reminders are unavailable.")
+        succeeded, message = self.reminders.create(str(args.get("text", "")))
+        return ActionResult(succeeded, message)
+
+    def list_reminders(self, _args: dict) -> ActionResult:
+        if not self.reminders:
+            return ActionResult(False, "Reminders are unavailable.")
+        pending = self.reminders.store.pending()
+        if not pending:
+            return ActionResult(True, "You have no reminders set.")
+        from datetime import datetime as _datetime
+
+        lines = []
+        for due_at, message in pending:
+            try:
+                when = _datetime.fromisoformat(due_at).strftime("%a %I:%M %p").replace(" 0", " ")
+            except ValueError:
+                when = due_at
+            lines.append(f"{when} - {message}")
+        return ActionResult(True, f"You have {len(pending)} reminder(s).", {"matches": lines})
+
+    def clear_reminders(self, _args: dict) -> ActionResult:
+        if not self.reminders:
+            return ActionResult(False, "Reminders are unavailable.")
+        count = self.reminders.store.clear()
+        return ActionResult(True, "Cleared all reminders." if count else "There were none to clear.")
 
     def show_problems(self, _args: dict) -> ActionResult:
         """Surface recent failures, which are otherwise only in the log file."""
