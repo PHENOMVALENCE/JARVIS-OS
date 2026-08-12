@@ -168,7 +168,7 @@ Incremental indexing compares exact file modification timestamps. Removed source
 
 ## Packaged layout
 
-The PyInstaller build uses folder mode for fast startup. Code, native libraries, assets, sounds, and plugin sources are under `dist\JARVIS-Mark-7`. Mutable packaged data is redirected to `%LOCALAPPDATA%\JARVIS`.
+The PyInstaller build uses folder mode for fast startup. Code, native libraries, assets, sounds, and plugin sources are under `dist\JARVIS`. Mutable packaged data is redirected to `%LOCALAPPDATA%\JARVIS`.
 
 ## Legacy boundary
 

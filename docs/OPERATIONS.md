@@ -71,8 +71,8 @@ This installs `requirements-dev.txt`, runs tests, builds `jarvis.spec`, and opti
 Output:
 
 ```text
-dist\JARVIS-Mark-7\
-  JARVIS-Mark-7.exe
+dist\JARVIS\
+  JARVIS.exe
   _internal\...
 ```
 

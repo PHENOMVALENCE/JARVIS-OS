@@ -11,7 +11,7 @@ The current suite covers command routing, action safety, conversation memory, cr
 ## Static validation
 
 ```powershell
-.\.venv\Scripts\python.exe -m compileall -q Mark_7.py Mark_6.py jarvis_os plugins
+.\.venv\Scripts\python.exe -m compileall -q Mark_7.py jarvis_os plugins
 .\.venv\Scripts\python.exe -m pip check
 git diff --check
 ```
@@ -83,7 +83,7 @@ Index a temporary folder containing a unique sentence, search for it, and verify
 
 ### Packaged build
 
-Launch `dist\JARVIS-Mark-7\JARVIS-Mark-7.exe` while retaining `_internal`. Verify it stays alive, creates `%LOCALAPPDATA%\JARVIS\jarvis.db`, and starts substantially faster than the deprecated one-file build.
+Launch `dist\JARVIS\JARVIS.exe` while retaining `_internal`. Verify it stays alive, creates `%LOCALAPPDATA%\JARVIS\jarvis.db`, and starts substantially faster than the deprecated one-file build.
 
 ## Adding tests
 

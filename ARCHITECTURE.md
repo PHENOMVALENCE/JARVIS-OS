@@ -16,7 +16,7 @@ No plugin receives a general shell capability. Plugin manifests declare actions 
 
 The desktop runtime is intentionally split into small layers:
 
-- `Mark_7.py` enforces a single instance and starts the app; `Mark_6.py` remains a compatibility launcher.
+- `Mark_7.py` is the entry point. A second launch raises the running window rather than exiting silently, and `JARVIS_SELFTEST=1` runs the frozen-build import check instead of starting. `Mark_6.py` remains as a compatibility launcher.
 - `jarvis_os/app.py` owns the Tk desktop UI, tray icon, worker queues, speech output, and confirmations.
 - `jarvis_os/router.py` maps common natural language to typed commands without model involvement. It strips the spoken wake name and politeness first, and exposes `needs_live_information` so the controller can send time-sensitive questions to live sources instead of stale model weights.
 - `jarvis_os/web_research.py` grounds answers using documented public APIs only (SerpAPI when a key is present, otherwise the DuckDuckGo Instant Answer and Wikipedia REST APIs). A failing provider degrades the answer rather than breaking it.
