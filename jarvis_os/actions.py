@@ -432,7 +432,10 @@ class WindowsActions:
     @staticmethod
     def copy_clipboard(args: dict) -> ActionResult:
         text = str(args["text"])
-        subprocess.run(["clip.exe"], input=text, text=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        # Every other subprocess call bounds itself; clip.exe can block if the
+        # clipboard is held open by another application.
+        subprocess.run(["clip.exe"], input=text, text=True, check=True, timeout=10,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
         return ActionResult(True, "Copied text to the clipboard.")
 
     @staticmethod
