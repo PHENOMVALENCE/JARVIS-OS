@@ -133,6 +133,7 @@ class SettingsRepository:
         "voice_barge_in": False,
         "piper_voice": "en_GB-alan-medium",
         "wake_word_backend": "openwakeword",
+        "earcons_enabled": True,
     }
 
     def __init__(self, database: Database):

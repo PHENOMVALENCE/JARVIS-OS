@@ -12,6 +12,7 @@ from typing import Callable
 from urllib.parse import quote
 
 from .commands import ActionResult, Command
+from .diagnostics_log import recent_problems
 from .facts import FactService
 from .file_search import FileSearch
 from .router import browser_search_url
@@ -100,6 +101,7 @@ class WindowsActions:
             "forecast": self.forecast,
             "read_screen": self.read_screen,
             "undo_delete": self.undo_delete,
+            "show_problems": self.show_problems,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -207,6 +209,16 @@ class WindowsActions:
         if not answer:
             return ActionResult(False, f"I could not find a place called {place}.")
         return ActionResult(True, answer)
+
+    def show_problems(self, _args: dict) -> ActionResult:
+        """Surface recent failures, which are otherwise only in the log file."""
+        problems = recent_problems(self.data_dir)
+        if not problems:
+            return ActionResult(True, "Nothing has gone wrong recently.")
+        return ActionResult(
+            True, f"{len(problems)} recent problem(s). The full log is in {self.data_dir / 'logs'}.",
+            {"matches": problems},
+        )
 
     def read_screen(self, args: dict) -> ActionResult:
         """Extract on-screen text locally, with no cloud vision call."""

@@ -28,6 +28,9 @@ from . import __version__
 from .wake_word import make_wake_word
 from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, HandsFreeListener, SentenceBuffer, SpeechEngine
 from .audio_level import MicrophoneLevel
+from .diagnostics_log import configure as configure_logging
+from .diagnostics_log import failure, get as get_logger
+from .earcons import Earcons
 from .orb import OrbCaption, VoiceOrb
 from .theme import Palette, Space, Type, state_style
 from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
@@ -38,6 +41,8 @@ class JarvisApp:
         self.root = root
         self.settings = settings or Settings()
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        configure_logging(self.settings.data_dir)
+        self.log = get_logger('app')
         self.work: queue.Queue[tuple[str, bool] | None] = queue.Queue()
         self.voice = None
         self._voice_lock = threading.Lock()
@@ -87,6 +92,7 @@ class JarvisApp:
         self._pulse = 0.0
         self._state = "idle"
         self.mic_level = MicrophoneLevel(self._on_level)
+        self.earcons = Earcons(bool(self.settings_repo.get('earcons_enabled', True)))
         self.hands_free = HandsFreeListener(
             self._listen_once,
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
@@ -434,6 +440,17 @@ class JarvisApp:
             self.security_session.touch()
         return "break"
 
+    def _on_wake(self) -> None:
+        """Confirm the wake word landed before listening.
+
+        Without this the assistant starts listening in silence, so you either
+        repeat yourself or talk over the start of the capture.
+        """
+        self.log.info("Woken by wake word")
+        self.earcons.play("wake")
+        self.show_window()
+        self.listen()
+
     def _make_voice_input(self) -> VoiceInput:
         return VoiceInput(VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model))
 
@@ -507,6 +524,7 @@ class JarvisApp:
                 reply = self.controller.process(text, spoken=spoken, on_chunk=self._queue_chunk)
                 self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
             except Exception as exc:
+                failure("worker", exc)
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))
 
     def _speaks(self) -> bool:
@@ -571,6 +589,8 @@ class JarvisApp:
         return answer[0]
 
     def _show_error(self, message: str) -> None:
+        self.log.error(message)
+        self.earcons.play("error")
         self.add_message("J.A.R.V.I.S", message)
         self.set_state("error")
 
@@ -602,7 +622,7 @@ class JarvisApp:
     def _start_wake_word(self) -> None:
         import os
         self.wake_word = make_wake_word(
-            lambda: self.root.after(0, self.listen),
+            lambda: self.root.after(0, self._on_wake),
             access_key=os.getenv("PORCUPINE_API_KEY", ""),
             backend=str(self.settings_repo.get("wake_word_backend", "openwakeword")),
             sensitivity=float(self.settings_repo.get("wake_word_sensitivity", 0.55)),
@@ -630,8 +650,8 @@ class JarvisApp:
             return
         try:
             warm()
-        except Exception:
-            pass
+        except Exception as error:
+            failure("model_warmup", error)
 
     def _check_updates(self) -> None:
         try:

@@ -79,6 +79,9 @@ class CommandRouter:
         if not normalized:
             return Command("noop", raw_text=raw)
 
+        if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log|any (?:errors|problems)|diagnostics)\b", normalized):
+            return Command("show_problems", raw_text=raw)
+
         if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
             return Command("undo_delete", raw_text=raw)
 

@@ -17,6 +17,8 @@ from dataclasses import dataclass
 
 import requests
 
+from .diagnostics_log import failure
+
 
 USER_AGENT = "JARVIS-OS/7.0 (personal desktop assistant)"
 
@@ -95,7 +97,8 @@ class WebResearch:
         """One failing provider must not take down the whole answer."""
         try:
             return list(fetch(*args))
-        except Exception:
+        except Exception as error:
+            failure("web_research", error, getattr(fetch, "__name__", ""))
             return []
 
     @staticmethod

@@ -9,6 +9,8 @@ import time
 import unicodedata
 from collections.abc import Callable
 
+from .diagnostics_log import failure
+
 
 def prepare_for_speech(text: str) -> str:
     """Turn display-oriented assistant text into clean spoken language."""
@@ -381,8 +383,9 @@ class SpeechEngine:
                 self._speak_piper(text)
                 self._piper_failures = 0
                 return
-            except Exception:
+            except Exception as error:
                 # Usually a missing voice file. Try a few times, then stop paying for it.
+                failure("speech.piper", error, f"attempt {self._piper_failures + 1}")
                 self._piper_failures += 1
                 self._piper = None
         if self.engine_name in {"edge", "piper"} and self._edge_failures < self.MAX_EDGE_FAILURES:
@@ -390,8 +393,9 @@ class SpeechEngine:
                 self._speak_edge(text)
                 self._edge_failures = 0
                 return
-            except Exception:
+            except Exception as error:
                 # Usually no internet connection. Retry a few times, then stay on SAPI.
+                failure("speech.edge", error, f"attempt {self._edge_failures + 1}")
                 self._edge_failures += 1
                 self._edge = None
         self._speak_windows(text)
@@ -401,7 +405,8 @@ class SpeechEngine:
             self.speaking.set()
             try:
                 self.speak_now(text)
-            except Exception:
+            except Exception as error:
+                failure("speech.windows", error)
                 self._windows = None
             finally:
                 self.speaking.clear()
@@ -468,6 +473,7 @@ class HandsFreeListener:
                         self.on_interrupt()
                 self.on_text(text)
             except Exception as exc:
+                failure("speech.hands_free", exc)
                 self.on_state(f"error: {exc}")
                 self.enabled.clear()
             time.sleep(0.1)
