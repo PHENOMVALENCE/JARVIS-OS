@@ -57,7 +57,25 @@ Natural speech contains pauses, and a microphone that stops at the first one tru
 
 The **"Hey Jarvis"** wake word runs locally through openWakeWord and needs no account or key. Porcupine remains selectable if you already have a `PORCUPINE_API_KEY`.
 
+Saying "Hey Jarvis" plays a short chime and brings the window forward, so you know it heard you before you start talking. `Ctrl+Alt+Space` summons it and starts listening from anywhere. Words appear under the orb as you speak them, using a fast draft model, with a more accurate pass at the end.
+
 Interrupting always works: press **STOP**, hit **Escape**, start typing, or press **MIC**. Interrupting by voice while it speaks is available under Settings but off by default — without echo cancellation the microphone hears the speakers, so it only works on headphones.
+
+## Reminders and music
+
+`Remind me in ten minutes to call mum`, `set a timer for 5 minutes`, or `remind me at 4 pm`. Reminders are stored, so they survive a restart, and they are spoken as well as shown. `What reminders do I have` lists them.
+
+With `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env`, `play bohemian rhapsody`, `pause`, `skip`, and `what is playing` control Spotify directly. Without them, playback commands fall back to the media keys and opening Spotify.
+
+## Swahili
+
+Speak Swahili and J.A.R.V.I.S answers in Swahili, using a Tanzanian voice. `fungua Notepad`, `saa ngapi sasa`, `hali ya hewa leo ikoje`, and `nikumbushe baada ya dakika kumi` all work, because Swahili commands are translated into the same routing English uses rather than duplicated.
+
+The limit worth knowing: the small local model reasons noticeably worse in Swahili than in English. Commands are unaffected, but open conversation will be weaker until a larger model is used. Turn it off with `bilingual_enabled`.
+
+## When something goes wrong
+
+Failures are written to `data/logs/jarvis.log`. Ask `what went wrong` to hear the recent problems without opening the file.
 
 ## Conversation
 

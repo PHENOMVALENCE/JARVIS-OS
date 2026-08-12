@@ -15,6 +15,7 @@ from .commands import ActionResult, Command
 from .diagnostics_log import recent_problems
 from .facts import FactService
 from .file_search import FileSearch
+from .music import SpotifyControl
 from .router import browser_search_url
 from .weather import WeatherService
 from .web_research import WebResearch
@@ -62,6 +63,7 @@ class WindowsActions:
         self.weather_service = weather or WeatherService()
         self.last_deleted: Path | None = None
         self.reminders = reminders
+        self.music = SpotifyControl(self.data_dir / 'spotify-token.json')
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
             "open_folder": self.open_folder,
@@ -106,6 +108,7 @@ class WindowsActions:
             "add_reminder": self.add_reminder,
             "list_reminders": self.list_reminders,
             "clear_reminders": self.clear_reminders,
+            "now_playing": self.now_playing,
         }
 
     def execute(self, command: Command) -> ActionResult:
@@ -278,16 +281,32 @@ class WindowsActions:
         message = f"Read {len(text.splitlines())} line(s) of on-screen text."
         return ActionResult(True, message, {"matches": [text], "query": query})
 
-    @staticmethod
-    def spotify_play(args: dict) -> ActionResult:
+    def spotify_play(self, args: dict) -> ActionResult:
+        """Start playback properly when Spotify is configured, else open it."""
         query = str(args["query"]).strip()
+        succeeded, message = self.music.play_query(query)
+        if message:
+            return ActionResult(succeeded, message)
         os.startfile(f"spotify:search:{quote(query)}")
         return ActionResult(True, f"Opened Spotify results for {query}.")
 
-    @staticmethod
-    def media(args: dict) -> ActionResult:
-        keys = {"next": 0xB0, "previous": 0xB1, "pause": 0xB3, "play": 0xB3}
+    def now_playing(self, _args: dict) -> ActionResult:
+        succeeded, message = self.music.now_playing()
+        if message:
+            return ActionResult(succeeded, message)
+        return ActionResult(False, "Connect Spotify in .env to read the current track.")
+
+    def media(self, args: dict) -> ActionResult:
+        """Prefer the Spotify API, and fall back to the media keys.
+
+        The media keys act on whatever last had focus, which is often the wrong
+        application, so controlling Spotify directly is more predictable.
+        """
         operation = str(args["operation"])
+        succeeded, message = self.music.control(operation)
+        if message:
+            return ActionResult(succeeded, message)
+        keys = {"next": 0xB0, "previous": 0xB1, "pause": 0xB3, "play": 0xB3}
         virtual_key = keys.get(operation)
         if virtual_key is None:
             return ActionResult(False, f"Unknown media operation: {operation}")

@@ -233,6 +233,9 @@ class CommandRouter:
         if match and match.group(1) not in {"music", "spotify"}:
             return Command("spotify_play", {"query": match.group(1)}, raw_text=raw)
 
+        if re.search(r"what(?:'s| is) (?:playing|this song)|what song is (?:this|playing)|name of (?:this|the) song", normalized):
+            return Command("now_playing", raw_text=raw)
+
         media = {
             "pause": "pause", "pause music": "pause", "resume": "play",
             "resume music": "play", "next song": "next", "skip": "next",
