@@ -225,6 +225,8 @@ CORE: tuple[Capability, ...] = (
     Capability("notification", "Show a message on screen", Risk.LOW, ("notify.show",),
                parameters=("message",)),
     Capability("show_problems", "Report recent failures", Risk.LOW),
+    Capability("run_health", "Check every subsystem", Risk.LOW,
+               verifier=_verify_matches_found),
 
     # Software management
     Capability("install_package", "Install software with winget", Risk.HIGH, ("packages.install",),

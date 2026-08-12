@@ -79,7 +79,15 @@ class CommandRouter:
         if not normalized:
             return Command("noop", raw_text=raw)
 
-        if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log|any (?:errors|problems)|diagnostics)\b", normalized):
+        # A health check inspects every subsystem now; the log only reports what
+        # already failed. "Diagnostics" means the former, so it is matched first.
+        if re.search(r"\b(?:run diagnostics|diagnostics|system check|health check"
+                     r"|are you (?:ok|okay|working|healthy)|is everything (?:ok|okay|working)"
+                     r"|check yourself)\b", normalized):
+            return Command("run_health", raw_text=raw)
+
+        if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log"
+                     r"|any (?:errors|problems)|recent (?:errors|failures))\b", normalized):
             return Command("show_problems", raw_text=raw)
 
         if re.search(r"^(?:what|which|list|show|any)\b.*\breminders?\b|^my reminders$", normalized):

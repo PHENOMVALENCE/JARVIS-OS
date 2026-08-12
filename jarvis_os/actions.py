@@ -54,7 +54,7 @@ KNOWN_FOLDERS = {name.lower(): name for name in (
 
 
 class WindowsActions:
-    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None, context=None):
+    def __init__(self, home: Path | None = None, *, data_dir: Path | None = None, settings_repo=None, openai_api_key: str = "", knowledge=None, web_research=None, weather=None, reminders=None, context=None, health=None):
         self.home = (home or Path.home()).resolve()
         self.data_dir = data_dir or Path(__file__).resolve().parent.parent / "data"
         self.settings_repo = settings_repo
@@ -68,6 +68,7 @@ class WindowsActions:
         self.reminders = reminders
         self.context = context or ContextEngine(settings_repo)
         self.registry = build_registry()
+        self.health_service = health
         self.music = SpotifyControl(self.data_dir / 'spotify-token.json')
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
@@ -110,6 +111,7 @@ class WindowsActions:
             "read_screen": self.read_screen,
             "undo_delete": self.undo_delete,
             "show_problems": self.show_problems,
+            "run_health": self.run_health,
             "add_reminder": self.add_reminder,
             "list_reminders": self.list_reminders,
             "clear_reminders": self.clear_reminders,
@@ -323,6 +325,22 @@ class WindowsActions:
             return ActionResult(False, "Reminders are unavailable.")
         count = self.reminders.store.clear()
         return ActionResult(True, "Cleared all reminders." if count else "There were none to clear.")
+
+    def run_health(self, _args: dict) -> ActionResult:
+        """Check every subsystem and lead with whatever needs attention."""
+        if self.health_service is None:
+            from .health import HealthService
+
+            self.health_service = HealthService(
+                self.settings_repo, self.data_dir, self.context, self.registry
+            )
+        checks = self.health_service.run()
+        lines = [
+            f"{check.status.value}  {check.subsystem} - {check.detail}"
+            + (f"  ({check.remedy})" if check.remedy else "")
+            for check in checks
+        ]
+        return ActionResult(True, self.health_service.summarise(checks), {"matches": lines})
 
     def show_problems(self, _args: dict) -> ActionResult:
         """Surface recent failures, which are otherwise only in the log file."""

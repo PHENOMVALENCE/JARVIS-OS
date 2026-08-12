@@ -11,7 +11,9 @@ from tkinter import messagebox, scrolledtext
 
 from .actions import WindowsActions
 from .assistant import AssistantController, ConversationStore, VoiceConfig, VoiceInput, make_provider
+from .capabilities import build_registry
 from .commands import Command
+from .context import ContextEngine
 from .security import AuditLog, SecureExecutor
 from .plugins import PluginManager
 from .settings import Settings
@@ -32,6 +34,7 @@ from .audio_level import MicrophoneLevel
 from .diagnostics_log import configure as configure_logging
 from .diagnostics_log import failure, get as get_logger
 from .earcons import Earcons
+from .health import HealthService
 from .language import SWAHILI, voice_for
 from .live_transcribe import LiveTranscriber
 from .reminders import ReminderService, ReminderStore
@@ -62,6 +65,10 @@ class JarvisApp:
             always_verify=bool(self.settings_repo.get("hello_for_high_risk", False)),
         )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
+        self.context = ContextEngine(self.settings_repo)
+        self.health = HealthService(
+            self.settings_repo, self.settings.data_dir, self.context, build_registry()
+        )
         self.reminders = ReminderService(
             ReminderStore(database), speak=lambda text: self.speech_engine.say(text)
         )
@@ -70,7 +77,7 @@ class JarvisApp:
             WindowsActions(
                 data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
                 openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
-                reminders=self.reminders,
+                reminders=self.reminders, context=self.context, health=self.health,
             ),
             self.settings.data_dir,
         )
