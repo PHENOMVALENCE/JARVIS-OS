@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import quote
 
+from .capabilities import build_registry
 from .commands import ActionResult, Command
 from .context import SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, ContextEngine
 from .diagnostics_log import failure, recent_problems
@@ -66,6 +67,7 @@ class WindowsActions:
         self.last_deleted: Path | None = None
         self.reminders = reminders
         self.context = context or ContextEngine(settings_repo)
+        self.registry = build_registry()
         self.music = SpotifyControl(self.data_dir / 'spotify-token.json')
         self._handlers: dict[str, Callable[[dict], ActionResult]] = {
             "noop": lambda _: ActionResult(True, "Nothing to do."),
@@ -127,9 +129,29 @@ class WindowsActions:
         except Exception as exc:
             failure("action", exc, command.action)
             result = ActionResult(False, f"{command.action} failed: {exc}")
+        result = self._verify(command, result)
         # Remember what was acted on, so "that" and "again" have a referent.
         self.context.note_action(command.action, result.success, result.message)
         return result
+
+    def _verify(self, command: Command, result: ActionResult) -> ActionResult:
+        """Check the machine actually changed, where a cheap check exists.
+
+        An API returning without raising is not evidence that anything
+        happened, so capabilities that can be checked are checked.
+        """
+        capability = self.registry.get(command.action)
+        if capability is None or not capability.verifiable or not result.success:
+            return result
+        try:
+            verified, detail = capability.verifier(command.arguments, result)
+        except Exception as error:
+            failure("verify", error, command.action)
+            return result
+        if verified:
+            return result
+        return ActionResult(False, f"{result.message} But it did not take effect: {detail}.",
+                            result.data)
 
     def _resolve_path(self, value: str) -> Path:
         value = value.strip().strip('"')

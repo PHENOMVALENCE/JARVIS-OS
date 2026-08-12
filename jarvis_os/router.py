@@ -89,7 +89,8 @@ class CommandRouter:
             return Command("add_reminder", {"text": raw}, raw_text=raw)
 
         if re.fullmatch(r"(?:cancel|clear) (?:all )?(?:my )?reminders", normalized):
-            return Command("clear_reminders", raw_text=raw)
+            # Irreversible: there is no undo for a cleared reminder.
+            return Command("clear_reminders", risk=Risk.MEDIUM, raw_text=raw)
 
         if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
             return Command("undo_delete", raw_text=raw)
