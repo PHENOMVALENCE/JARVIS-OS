@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .commands import Command
+from .language import REPLY_IN_SWAHILI, SWAHILI, detect, to_command_english
 from .router import FOLLOW_UP_ARGUMENT, CommandRouter, needs_live_information, split_commands
 from .security import SecureExecutor
 from .settings import Settings
@@ -143,6 +144,7 @@ class AssistantController:
         self.settings_repo = settings_repo
         self._last_action_context: str | None = None
         self._last_command: Command | None = None
+        self.last_language = "en"
 
     def _auto_web_enabled(self) -> bool:
         return not self.settings_repo or bool(self.settings_repo.get("auto_web_answers", True))
@@ -215,6 +217,24 @@ class AssistantController:
             return AssistantReply(" ".join(messages))
         return self._process_one(text, spoken, on_chunk)
 
+    def _bilingual_enabled(self) -> bool:
+        return not self.settings_repo or bool(self.settings_repo.get("bilingual_enabled", True))
+
+    def _prepare(self, text: str) -> str:
+        """Note the language spoken and rewrite Swahili commands into English.
+
+        Routing stays in one language so every command works in both, while the
+        reply is generated in whichever language was used.
+        """
+        if not self._bilingual_enabled():
+            self.last_language = "en"
+            return text
+        self.last_language = detect(text)
+        return to_command_english(text) if self.last_language == SWAHILI else text
+
+    def _language_prompt(self) -> list[dict[str, str]]:
+        return [{"role": "system", "content": REPLY_IN_SWAHILI}] if self.last_language == SWAHILI else []
+
     def _is_action(self, text: str) -> bool:
         """True when a fragment stands on its own as a command, not conversation."""
         command = self.plugins.route(text) if self.plugins else None
@@ -222,6 +242,7 @@ class AssistantController:
         return command.action not in {"chat", "noop", "follow_up", "repeat_last"}
 
     def _process_one(self, text: str, spoken: bool = False, on_chunk: Callable[[str], None] | None = None) -> AssistantReply:
+        text = self._prepare(text)
         workflow = self.workflows.match_voice(text) if self.workflows else None
         if workflow:
             result = self.workflows.run(workflow)
@@ -244,6 +265,7 @@ class AssistantController:
                 context = "\n\n".join(details)
                 answer = self._answer([
                     {"role": "system", "content": "Answer only from the supplied local document passages. Cite each source path and page used. Say when the evidence is insufficient."},
+                    *self._language_prompt(),
                     *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nPassages:\n{context}"},
                 ], on_chunk)
@@ -252,6 +274,7 @@ class AssistantController:
                 question = str((result.data or {}).get("query") or "").strip()
                 answer = self._answer([
                     {"role": "system", "content": "Text was read from the user's screen by local OCR. Answer using only that text. OCR output can be garbled or out of order, so say when something is unclear rather than guessing."},
+                    *self._language_prompt(),
                     *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {question or 'What is on my screen?'}\n\nScreen text:\n{details[0]}"},
                 ], on_chunk)
@@ -260,6 +283,7 @@ class AssistantController:
                 context = "\n\n".join(details)
                 answer = self._answer([
                     {"role": "system", "content": "Answer the question using the supplied current web search results. Be clear and useful. Cite supporting URLs inline. Distinguish facts from inference and say when the snippets are insufficient."},
+                    *self._language_prompt(),
                     *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
                     {"role": "user", "content": f"Question: {command.arguments['query']}\n\nWeb results:\n{context}"},
                 ], on_chunk)
@@ -275,6 +299,7 @@ class AssistantController:
         history = self.store.recent(limit=self._memory_limit()) if memory_enabled else [{"role": "user", "content": text}]
         messages = [
             {"role": "system", "content": self._system_prompt()},
+            *self._language_prompt(),
             *([{"role": "system", "content": VOICE_RESPONSE_PROMPT}] if spoken else []),
             *history,
         ]

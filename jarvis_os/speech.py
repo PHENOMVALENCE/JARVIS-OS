@@ -313,6 +313,12 @@ class SpeechEngine:
         if cleaned:
             self.queue.put(cleaned)
 
+    def use_voice(self, edge_voice: str) -> None:
+        """Switch the neural voice, used when replying in another language."""
+        if edge_voice and edge_voice != self.edge_voice:
+            self.edge_voice = edge_voice
+            self._edge = None
+
     def stop(self) -> None:
         self.queue.put(None)
 

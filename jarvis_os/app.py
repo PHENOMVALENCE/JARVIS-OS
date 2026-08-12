@@ -31,6 +31,7 @@ from .audio_level import MicrophoneLevel
 from .diagnostics_log import configure as configure_logging
 from .diagnostics_log import failure, get as get_logger
 from .earcons import Earcons
+from .language import SWAHILI, voice_for
 from .live_transcribe import LiveTranscriber
 from .reminders import ReminderService, ReminderStore
 from .orb import OrbCaption, VoiceOrb
@@ -556,12 +557,25 @@ class JarvisApp:
     def _speaks(self) -> bool:
         return bool(self.settings_repo.get("speak_responses", self.settings.speak_responses))
 
+    def _match_voice_to_language(self) -> None:
+        """Answer Swahili in a Swahili voice, English in the configured one."""
+        language = getattr(self.controller, "last_language", "en")
+        configured = str(self.settings_repo.get("edge_voice", DEFAULT_EDGE_VOICE))
+        engine = self.speech_engine.engine_name
+        self.speech_engine.use_voice(voice_for(language, engine, configured))
+        if language == SWAHILI and engine == "piper":
+            # No Swahili Piper voice exists, so fall back to the cloud voice
+            # for this reply rather than reading Swahili with an English one.
+            self.speech_engine.engine_name = "edge"
+            self.speech_engine.use_voice(voice_for(language, "edge", configured))
+
     def _queue_chunk(self, chunk: str) -> None:
         """Called from the worker thread as model tokens arrive."""
         self.root.after(0, lambda: self._render_chunk(chunk))
 
     def _render_chunk(self, chunk: str) -> None:
         if not self._streaming:
+            self._match_voice_to_language()
             self._streaming = True
             self.begin_message("J.A.R.V.I.S")
             self.set_state("speaking")
@@ -580,6 +594,7 @@ class JarvisApp:
         else:
             self.add_message("J.A.R.V.I.S", text, details)
             if self._speaks():
+                self._match_voice_to_language()
                 self.speech_engine.say(text)
         self.set_state("idle")
 
