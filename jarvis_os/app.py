@@ -28,6 +28,12 @@ from . import __version__
 from .wake_word import make_wake_word
 from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, HandsFreeListener, SentenceBuffer, SpeechEngine
 from .audio_level import MicrophoneLevel
+from .diagnostics_log import configure as configure_logging
+from .diagnostics_log import failure, get as get_logger
+from .earcons import Earcons
+from .language import SWAHILI, voice_for
+from .live_transcribe import LiveTranscriber
+from .reminders import ReminderService, ReminderStore
 from .orb import OrbCaption, VoiceOrb
 from .theme import Palette, Space, Type, state_style
 from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
@@ -38,6 +44,8 @@ class JarvisApp:
         self.root = root
         self.settings = settings or Settings()
         self.settings.data_dir.mkdir(parents=True, exist_ok=True)
+        configure_logging(self.settings.data_dir)
+        self.log = get_logger('app')
         self.work: queue.Queue[tuple[str, bool] | None] = queue.Queue()
         self.voice = None
         self._voice_lock = threading.Lock()
@@ -51,11 +59,15 @@ class JarvisApp:
             always_verify=bool(self.settings_repo.get("hello_for_high_risk", False)),
         )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
+        self.reminders = ReminderService(
+            ReminderStore(database), speak=lambda text: self.speech_engine.say(text)
+        )
         self.plugins = PluginManager(
             self.settings.project_root / "plugins", database,
             WindowsActions(
                 data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
                 openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
+                reminders=self.reminders,
             ),
             self.settings.data_dir,
         )
@@ -70,7 +82,9 @@ class JarvisApp:
         self.controller = AssistantController(
             executor, store, make_provider(self.settings, self.settings_repo), self.plugins, self.workflows, self.settings_repo
         )
-        self.proactive = ProactiveScheduler(database, self.settings_repo, self.workflows)
+        self.proactive = ProactiveScheduler(
+            database, self.settings_repo, self.workflows, reminders=self.reminders
+        )
         self.tray_icon = None
         self._closing = False
         self.speech_engine = SpeechEngine(
@@ -87,6 +101,10 @@ class JarvisApp:
         self._pulse = 0.0
         self._state = "idle"
         self.mic_level = MicrophoneLevel(self._on_level)
+        self.live_transcriber = LiveTranscriber.from_settings(
+            self.settings_repo, self.settings.whisper_model
+        )
+        self.earcons = Earcons(bool(self.settings_repo.get('earcons_enabled', True)))
         self.hands_free = HandsFreeListener(
             self._listen_once,
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
@@ -307,7 +325,9 @@ class JarvisApp:
         shortcuts.pack(fill="x", pady=(Space.MD, 0))
         tk.Label(shortcuts.body, text="SHORTCUTS", bg=Palette.SURFACE, fg=Palette.TEXT_FAINT,
                  font=Type.MONO_SMALL).pack(anchor="w", pady=(0, Space.SM))
-        for keys, meaning in (("Hey Jarvis", "wake by voice"), ("Esc", "stop speaking"),
+        for keys, meaning in (("Hey Jarvis", "wake by voice"),
+                              ("Ctrl+Alt+Space", "summon and listen"),
+                              ("Esc", "stop speaking"),
                               ("Ctrl+Alt+J", "emergency stop")):
             row = tk.Frame(shortcuts.body, bg=Palette.SURFACE)
             row.pack(fill="x", pady=2)
@@ -434,6 +454,17 @@ class JarvisApp:
             self.security_session.touch()
         return "break"
 
+    def _on_wake(self) -> None:
+        """Confirm the wake word landed before listening.
+
+        Without this the assistant starts listening in silence, so you either
+        repeat yourself or talk over the start of the capture.
+        """
+        self.log.info("Woken by wake word")
+        self.earcons.play("wake")
+        self.show_window()
+        self.listen()
+
     def _make_voice_input(self) -> VoiceInput:
         return VoiceInput(VoiceConfig.from_settings(self.settings_repo, self.settings.whisper_model))
 
@@ -474,8 +505,21 @@ class JarvisApp:
             text, colour = "Waiting for microphone", Palette.TEXT_FAINT
         self.mic_hint.configure(text=text, fg=colour)
 
+    def _on_partial(self, text: str) -> None:
+        """Draft text from the recogniser, shown while you are still talking."""
+        if not self._closing:
+            try:
+                self.root.after(0, lambda: self.orb_caption.set_live_text(text))
+            except (tk.TclError, RuntimeError):
+                pass
+
     def _listen_once(self) -> str:
         with self._voice_lock:
+            if self.settings_repo.get("live_transcription", True):
+                self.live_transcriber = LiveTranscriber.from_settings(
+                    self.settings_repo, self.settings.whisper_model
+                )
+                return self.live_transcriber.listen(self._on_partial)
             if self.voice is None:
                 self.voice = self._make_voice_input()
             else:
@@ -507,10 +551,23 @@ class JarvisApp:
                 reply = self.controller.process(text, spoken=spoken, on_chunk=self._queue_chunk)
                 self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
             except Exception as exc:
+                failure("worker", exc)
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))
 
     def _speaks(self) -> bool:
         return bool(self.settings_repo.get("speak_responses", self.settings.speak_responses))
+
+    def _match_voice_to_language(self) -> None:
+        """Answer Swahili in a Swahili voice, English in the configured one."""
+        language = getattr(self.controller, "last_language", "en")
+        configured = str(self.settings_repo.get("edge_voice", DEFAULT_EDGE_VOICE))
+        engine = self.speech_engine.engine_name
+        self.speech_engine.use_voice(voice_for(language, engine, configured))
+        if language == SWAHILI and engine == "piper":
+            # No Swahili Piper voice exists, so fall back to the cloud voice
+            # for this reply rather than reading Swahili with an English one.
+            self.speech_engine.engine_name = "edge"
+            self.speech_engine.use_voice(voice_for(language, "edge", configured))
 
     def _queue_chunk(self, chunk: str) -> None:
         """Called from the worker thread as model tokens arrive."""
@@ -518,6 +575,7 @@ class JarvisApp:
 
     def _render_chunk(self, chunk: str) -> None:
         if not self._streaming:
+            self._match_voice_to_language()
             self._streaming = True
             self.begin_message("J.A.R.V.I.S")
             self.set_state("speaking")
@@ -536,6 +594,7 @@ class JarvisApp:
         else:
             self.add_message("J.A.R.V.I.S", text, details)
             if self._speaks():
+                self._match_voice_to_language()
                 self.speech_engine.say(text)
         self.set_state("idle")
 
@@ -571,6 +630,8 @@ class JarvisApp:
         return answer[0]
 
     def _show_error(self, message: str) -> None:
+        self.log.error(message)
+        self.earcons.play("error")
         self.add_message("J.A.R.V.I.S", message)
         self.set_state("error")
 
@@ -594,7 +655,12 @@ class JarvisApp:
     def _start_emergency_hotkey(self) -> None:
         try:
             from pynput.keyboard import GlobalHotKeys
-            self.emergency_hotkey = GlobalHotKeys({"<ctrl>+<alt>+j": lambda: self.root.after(0, self.emergency_stop)})
+            self.emergency_hotkey = GlobalHotKeys({
+                "<ctrl>+<alt>+j": lambda: self.root.after(0, self.emergency_stop),
+                # Summon: bring the window forward and start listening, which
+                # is the fastest route in when the microphone is paused.
+                "<ctrl>+<alt>+space": lambda: self.root.after(0, self.summon),
+            })
             self.emergency_hotkey.start()
         except Exception:
             self.emergency_hotkey = None
@@ -602,13 +668,20 @@ class JarvisApp:
     def _start_wake_word(self) -> None:
         import os
         self.wake_word = make_wake_word(
-            lambda: self.root.after(0, self.listen),
+            lambda: self.root.after(0, self._on_wake),
             access_key=os.getenv("PORCUPINE_API_KEY", ""),
             backend=str(self.settings_repo.get("wake_word_backend", "openwakeword")),
             sensitivity=float(self.settings_repo.get("wake_word_sensitivity", 0.55)),
         )
         if self.settings_repo.get("wake_word_enabled", False):
             self.wake_word.start()
+
+    def summon(self) -> None:
+        """Bring J.A.R.V.I.S forward and listen, from anywhere."""
+        self.log.info("Summoned by hotkey")
+        self.show_window()
+        self.earcons.play("wake")
+        self.listen()
 
     def emergency_stop(self) -> None:
         self.workflows.cancel()
@@ -625,13 +698,14 @@ class JarvisApp:
     def _warm_model(self) -> None:
         """Load the local model during startup so the first question is not slow."""
         self.speech_engine.warm()
+        self.live_transcriber.warm()
         warm = getattr(self.controller.provider, "warm", None)
         if not callable(warm):
             return
         try:
             warm()
-        except Exception:
-            pass
+        except Exception as error:
+            failure("model_warmup", error)
 
     def _check_updates(self) -> None:
         try:

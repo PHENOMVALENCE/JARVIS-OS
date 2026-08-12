@@ -10,6 +10,8 @@ from __future__ import annotations
 import struct
 import threading
 
+from .diagnostics_log import failure
+
 
 FRAME_LENGTH = 1280
 SAMPLE_RATE = 16000
@@ -77,8 +79,8 @@ class OpenWakeWordListener:
                 if hit and not triggered:
                     self.callback()
                 triggered = hit
-        except Exception:
-            pass
+        except Exception as error:
+            failure("wake_word", error)
         finally:
             if stream:
                 stream.close()

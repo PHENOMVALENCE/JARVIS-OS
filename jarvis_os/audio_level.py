@@ -12,6 +12,8 @@ import threading
 import time
 from collections.abc import Callable
 
+from .diagnostics_log import failure
+
 
 SAMPLE_RATE = 16000
 CHUNK = 1024
@@ -100,6 +102,7 @@ class MicrophoneLevel:
                 self.on_level(self.level)
                 time.sleep(self.interval)
         except Exception as exc:
+            failure("microphone", exc)
             self.available = False
             self.error = str(exc)
             self.on_level(0.0)

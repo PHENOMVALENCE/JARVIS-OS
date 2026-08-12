@@ -30,6 +30,15 @@ The interface is built from a single visual language rather than per-widget colo
 - `audio_level.py` measures input loudness and discards the audio. It never transcribes, and it also supplies the room-tone reading used to calibrate the speech threshold.
 - `setup_ui.py` is the first-run wizard; `startup.py` owns the sign-in entry for both the wizard and the settings screen.
 
+Supporting subsystems added alongside:
+
+- `diagnostics_log.py` gives swallowed exceptions somewhere to go. The codebase catches broadly on purpose; without a record, a silent failure looks identical to a missing feature.
+- `earcons.py` synthesises short confirmation tones rather than shipping audio files.
+- `live_transcribe.py` runs its own VAD and transcribes the audio so far, using a fast model for drafts and an accurate one for the final result.
+- `reminders.py` stores reminders in SQLite so they survive a restart, and the proactive loop delivers them.
+- `language.py` detects Swahili and rewrites Swahili commands into the English the router already understands, so both languages share one routing path.
+- `music.py` controls Spotify through its API, falling back to the media keys.
+
 A single `set_state` call moves the orb, the status chip, the caption, and the session note together, so they cannot disagree about what the assistant is doing.
 - `jarvis_os/actions.py` contains explicit Windows capabilities. It does not expose a general shell tool.
 - `jarvis_os/security.py` applies risk policy and records every local action in SQLite.
