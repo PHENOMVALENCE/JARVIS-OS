@@ -11,10 +11,13 @@ from tkinter import messagebox, scrolledtext
 
 from .actions import WindowsActions
 from .assistant import AssistantController, ConversationStore, VoiceConfig, VoiceInput, make_provider
+from .capabilities import build_registry
 from .commands import Command
+from .context import ContextEngine
 from .security import AuditLog, SecureExecutor
 from .plugins import PluginManager
 from .settings import Settings
+from .settings_cache import CachedSettings
 from .settings_ui import SettingsWindow
 from .storage import Database, PermissionRepository, SettingsRepository
 from .workflows import WorkflowEngine, WorkflowRepository
@@ -31,9 +34,11 @@ from .audio_level import MicrophoneLevel
 from .diagnostics_log import configure as configure_logging
 from .diagnostics_log import failure, get as get_logger
 from .earcons import Earcons
+from .health import HealthService
 from .language import SWAHILI, voice_for
 from .live_transcribe import LiveTranscriber
 from .reminders import ReminderService, ReminderStore
+from .response_policy import Delivery, ResponsePolicy
 from .orb import OrbCaption, VoiceOrb
 from .theme import Palette, Space, Type, state_style
 from .widgets import Button, Card, LevelMeter, MetricRow, StatusChip
@@ -50,7 +55,8 @@ class JarvisApp:
         self.voice = None
         self._voice_lock = threading.Lock()
         database = Database(self.settings.data_dir / "jarvis.db")
-        self.settings_repo = SettingsRepository(database)
+        # Reads happen per streamed token, so they come from memory.
+        self.settings_repo = CachedSettings(SettingsRepository(database))
         self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
         self.audit = audit
@@ -59,6 +65,10 @@ class JarvisApp:
             always_verify=bool(self.settings_repo.get("hello_for_high_risk", False)),
         )
         self.knowledge = KnowledgeIndex(database, self.settings_repo)
+        self.context = ContextEngine(self.settings_repo)
+        self.health = HealthService(
+            self.settings_repo, self.settings.data_dir, self.context, build_registry()
+        )
         self.reminders = ReminderService(
             ReminderStore(database), speak=lambda text: self.speech_engine.say(text)
         )
@@ -67,7 +77,7 @@ class JarvisApp:
             WindowsActions(
                 data_dir=self.settings.data_dir, settings_repo=self.settings_repo,
                 openai_api_key=self.settings.openai_api_key, knowledge=self.knowledge,
-                reminders=self.reminders,
+                reminders=self.reminders, context=self.context, health=self.health,
             ),
             self.settings.data_dir,
         )
@@ -105,6 +115,7 @@ class JarvisApp:
             self.settings_repo, self.settings.whisper_model
         )
         self.earcons = Earcons(bool(self.settings_repo.get('earcons_enabled', True)))
+        self.response_policy = ResponsePolicy(self.settings_repo)
         self.hands_free = HandsFreeListener(
             self._listen_once,
             lambda text: self.root.after(0, lambda: self._submit_voice(text)),
@@ -513,12 +524,23 @@ class JarvisApp:
             except (tk.TclError, RuntimeError):
                 pass
 
+    def _refresh_transcriber(self) -> None:
+        """Rebuild only when the settings behind it change.
+
+        Constructing a LiveTranscriber discards its loaded models, and reloading
+        both faster-whisper models cost 2.35s on every spoken request.
+        """
+        wanted = LiveTranscriber.from_settings(self.settings_repo, self.settings.whisper_model)
+        current = self.live_transcriber
+        if current is None or current.signature() != wanted.signature():
+            self.live_transcriber = wanted
+        else:
+            current.apply(wanted)
+
     def _listen_once(self) -> str:
         with self._voice_lock:
             if self.settings_repo.get("live_transcription", True):
-                self.live_transcriber = LiveTranscriber.from_settings(
-                    self.settings_repo, self.settings.whisper_model
-                )
+                self._refresh_transcriber()
                 return self.live_transcriber.listen(self._on_partial)
             if self.voice is None:
                 self.voice = self._make_voice_input()
@@ -549,7 +571,8 @@ class JarvisApp:
                 self._streaming = False
                 self._sentences = SentenceBuffer()
                 reply = self.controller.process(text, spoken=spoken, on_chunk=self._queue_chunk)
-                self.root.after(0, lambda r=reply: self._deliver(r.text, r.details))
+                action = getattr(self.controller, "last_action", "")
+                self.root.after(0, lambda r=reply, a=action: self._deliver(r.text, r.details, a, spoken))
             except Exception as exc:
                 failure("worker", exc)
                 self.root.after(0, lambda e=exc: self._show_error(str(e)))
@@ -584,18 +607,29 @@ class JarvisApp:
             for sentence in self._sentences.push(chunk):
                 self.speech_engine.say(sentence)
 
-    def _deliver(self, text: str, details: list[str] | None) -> None:
+    def _deliver(self, text: str, details: list[str] | None,
+                 action: str = "", spoken_request: bool = False) -> None:
         if self._streaming:
             remainder = self._sentences.flush()
             if remainder and self._speaks():
                 self.speech_engine.say(remainder)
             self.end_message(details)
             self._streaming = False
-        else:
+            self.set_state("idle")
+            return
+        # An action result: say only as much as the outcome needs.
+        succeeded = not getattr(self.controller, "last_failed", False)
+        response = self.response_policy.for_action(action, succeeded, text, spoken_request)
+        if response.earcon:
+            self.earcons.play(response.earcon)
+        if response.shows:
             self.add_message("J.A.R.V.I.S", text, details)
-            if self._speaks():
-                self._match_voice_to_language()
-                self.speech_engine.say(text)
+        if response.speaks:
+            self._match_voice_to_language()
+            self.speech_engine.say(text)
+        if response.delivery is Delivery.EARCON:
+            # Still record it, so the transcript remains a complete history.
+            self.add_message("J.A.R.V.I.S", text, details)
         self.set_state("idle")
 
     def _voice_state(self, state: str) -> None:

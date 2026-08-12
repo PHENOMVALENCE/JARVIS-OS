@@ -22,7 +22,25 @@ class ScreenTextReader:
             return False
 
     @staticmethod
-    def _engine():
+    def _preload_onnxruntime() -> None:
+        """Load onnxruntime before the Windows Runtime is initialised.
+
+        Initialising WinRT first makes the *first* onnxruntime DLL load fail
+        with a dynamic link library initialisation error, which silently takes
+        out the wake word and the offline voice, both of which run on onnx.
+        Once onnxruntime is resident the two coexist, so ordering is the whole
+        fix. Measured: reading the screen before the wake word had ever started
+        left "Hey Jarvis" permanently unable to load.
+        """
+        try:
+            import onnxruntime  # noqa: F401
+        except Exception:
+            # Nothing to protect if it is not installed.
+            pass
+
+    @classmethod
+    def _engine(cls):
+        cls._preload_onnxruntime()
         import winrt.windows.media.ocr as ocr
         return ocr.OcrEngine.try_create_from_user_profile_languages()
 

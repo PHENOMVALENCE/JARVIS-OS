@@ -8,19 +8,17 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
+from .capabilities import build_registry
 from .security import AuditLog
 from .speech import DEFAULT_EDGE_VOICE, DEFAULT_PIPER_VOICE, EDGE_VOICES, PIPER_VOICES
 from .storage import PermissionRepository, SettingsRepository
 
 
-ACTIONS = (
-    "open_app", "open_folder", "find_files", "web_search", "web_research", "spotify_play",
-    "weather", "forecast", "read_screen", "current_time", "current_date",
-    "calculate", "convert", "battery", "disk_space",
-    "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
-    "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
-    "close_app", "delete_path", "index_documents", "semantic_search",
-    "install_package", "upgrade_package", "undo_delete", "show_problems",
+# Permission rows come from the capability registry, so an action can never
+# be added without also being permission-configurable.
+ACTIONS = tuple(
+    name for name in build_registry().actions()
+    if name != "noop"
 )
 
 

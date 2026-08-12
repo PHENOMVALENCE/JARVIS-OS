@@ -79,7 +79,15 @@ class CommandRouter:
         if not normalized:
             return Command("noop", raw_text=raw)
 
-        if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log|any (?:errors|problems)|diagnostics)\b", normalized):
+        # A health check inspects every subsystem now; the log only reports what
+        # already failed. "Diagnostics" means the former, so it is matched first.
+        if re.search(r"\b(?:run diagnostics|diagnostics|system check|health check"
+                     r"|are you (?:ok|okay|working|healthy)|is everything (?:ok|okay|working)"
+                     r"|check yourself)\b", normalized):
+            return Command("run_health", raw_text=raw)
+
+        if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log"
+                     r"|any (?:errors|problems)|recent (?:errors|failures))\b", normalized):
             return Command("show_problems", raw_text=raw)
 
         if re.search(r"^(?:what|which|list|show|any)\b.*\breminders?\b|^my reminders$", normalized):
@@ -89,10 +97,44 @@ class CommandRouter:
             return Command("add_reminder", {"text": raw}, raw_text=raw)
 
         if re.fullmatch(r"(?:cancel|clear) (?:all )?(?:my )?reminders", normalized):
-            return Command("clear_reminders", raw_text=raw)
+            # Irreversible: there is no undo for a cleared reminder.
+            return Command("clear_reminders", risk=Risk.MEDIUM, raw_text=raw)
 
         if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
             return Command("undo_delete", raw_text=raw)
+
+        # Context-dependent requests. "This" and "that" mean the window the user
+        # is looking at, which the context engine resolves rather than the model.
+        match = re.fullmatch(
+            r"(?:close|quit|exit|dismiss)\s+(?:this|that|it|this window|that window|the window)",
+            normalized,
+        )
+        if match:
+            return Command("close_window", risk=Risk.MEDIUM, raw_text=raw)
+
+        match = re.fullmatch(
+            r"(?P<op>minimi[sz]e|maximi[sz]e|restore)\s+(?:this|that|it|this window|that window|the window)",
+            normalized,
+        )
+        if match:
+            operation = {"minimise": "minimize", "maximise": "maximize"}.get(
+                match.group("op"), match.group("op")
+            )
+            return Command("context_window_state", {"operation": operation}, raw_text=raw)
+
+        if re.fullmatch(
+            r"(?:what am i (?:doing|on|looking at)|what(?:'s| is) (?:this|on top|in front)"
+            r"|which (?:app|window) am i (?:in|using))",
+            normalized,
+        ):
+            return Command("describe_context", raw_text=raw)
+
+        if re.fullmatch(
+            r"(?:open|show)\s+(?:the\s+)?(?:containing\s+folder|folder (?:this|that) (?:file )?is in"
+            r"|its folder|the folder)",
+            normalized,
+        ):
+            return Command("open_containing_folder", raw_text=raw)
 
         if re.fullmatch(r"(?:do (?:that|it) again|again|repeat that|same again|one more time)", normalized):
             return Command("repeat_last", raw_text=raw)

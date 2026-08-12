@@ -80,8 +80,14 @@ class ProblemRoutingTests(unittest.TestCase):
     def test_asking_what_went_wrong_reaches_the_log(self):
         router = CommandRouter()
         for text in ("What went wrong", "Show me the log", "Any errors",
-                     "Jarvis diagnostics"):
+                     "Recent failures"):
             self.assertEqual(router.route(text).action, "show_problems", text)
+
+    def test_asking_for_diagnostics_checks_the_subsystems(self):
+        """The log says what already failed; a health check inspects everything."""
+        router = CommandRouter()
+        for text in ("Run diagnostics", "System check", "Is everything ok"):
+            self.assertEqual(router.route(text).action, "run_health", text)
 
     def test_ordinary_requests_are_unaffected(self):
         router = CommandRouter()
