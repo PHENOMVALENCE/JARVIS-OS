@@ -15,6 +15,7 @@ from .commands import Command
 from .security import AuditLog, SecureExecutor
 from .plugins import PluginManager
 from .settings import Settings
+from .settings_cache import CachedSettings
 from .settings_ui import SettingsWindow
 from .storage import Database, PermissionRepository, SettingsRepository
 from .workflows import WorkflowEngine, WorkflowRepository
@@ -50,7 +51,8 @@ class JarvisApp:
         self.voice = None
         self._voice_lock = threading.Lock()
         database = Database(self.settings.data_dir / "jarvis.db")
-        self.settings_repo = SettingsRepository(database)
+        # Reads happen per streamed token, so they come from memory.
+        self.settings_repo = CachedSettings(SettingsRepository(database))
         self.permissions_repo = PermissionRepository(database)
         audit = AuditLog(self.settings.data_dir / "jarvis.db")
         self.audit = audit
@@ -513,12 +515,23 @@ class JarvisApp:
             except (tk.TclError, RuntimeError):
                 pass
 
+    def _refresh_transcriber(self) -> None:
+        """Rebuild only when the settings behind it change.
+
+        Constructing a LiveTranscriber discards its loaded models, and reloading
+        both faster-whisper models cost 2.35s on every spoken request.
+        """
+        wanted = LiveTranscriber.from_settings(self.settings_repo, self.settings.whisper_model)
+        current = self.live_transcriber
+        if current is None or current.signature() != wanted.signature():
+            self.live_transcriber = wanted
+        else:
+            current.apply(wanted)
+
     def _listen_once(self) -> str:
         with self._voice_lock:
             if self.settings_repo.get("live_transcription", True):
-                self.live_transcriber = LiveTranscriber.from_settings(
-                    self.settings_repo, self.settings.whisper_model
-                )
+                self._refresh_transcriber()
                 return self.live_transcriber.listen(self._on_partial)
             if self.voice is None:
                 self.voice = self._make_voice_input()

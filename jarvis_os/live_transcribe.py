@@ -55,6 +55,18 @@ class LiveTranscriber:
 
     # ------------------------------------------------------------- model
 
+    def signature(self) -> tuple:
+        """What must match for a transcriber to be reusable: its models."""
+        return (self.model_name, self.partial_model_name, self.device_index)
+
+    def apply(self, other: "LiveTranscriber") -> None:
+        """Adopt another's tuning without discarding the loaded models."""
+        self.energy = other.energy
+        self.pause = other.pause
+        self.partial_interval = other.partial_interval
+        self.max_seconds = other.max_seconds
+        self.start_timeout = other.start_timeout
+
     def _load(self, name: str):
         with self._model_lock:
             if name not in self._models:
