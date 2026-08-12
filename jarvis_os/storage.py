@@ -133,6 +133,12 @@ class SettingsRepository:
         "voice_barge_in": False,
         "piper_voice": "en_GB-alan-medium",
         "wake_word_backend": "openwakeword",
+        "earcons_enabled": True,
+        "live_transcription": True,
+        "partial_whisper_model": "tiny",
+        "partial_interval": 1.2,
+        "bilingual_enabled": True,
+        "swahili_voice": "sw-TZ-DaudiNeural",
     }
 
     def __init__(self, database: Database):

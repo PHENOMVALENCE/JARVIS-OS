@@ -21,7 +21,17 @@ New Mark 7 capabilities:
 - Run `python Diagnose-Jarvis.py` to verify the installation.
 - Build a standalone executable with `.\Build-Release.ps1`.
 
-The first launch presents a privacy-focused setup wizard. Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
+## First run
+
+`.\Setup-Jarvis.ps1` installs dependencies and downloads the language, embedding, wake-word, and voice models. The first launch then walks through the choices that need a person:
+
+1. **Microphone** — a live meter shows it is being heard, and one button measures room tone and sets the level at which J.A.R.V.I.S decides you are speaking, instead of shipping one threshold for every room.
+2. **Voice** — offline neural (faster, works with no connection) or the Edge voice, with a button to hear it.
+3. **"Hey Jarvis"** — the local wake word, no account required.
+4. **Startup** — the wake word only works while J.A.R.V.I.S is running, so this starts it at sign-in.
+5. **Privacy** — memory, proactive alerts, and privacy mode.
+
+Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
 
 ## Voice output
 
@@ -47,7 +57,25 @@ Natural speech contains pauses, and a microphone that stops at the first one tru
 
 The **"Hey Jarvis"** wake word runs locally through openWakeWord and needs no account or key. Porcupine remains selectable if you already have a `PORCUPINE_API_KEY`.
 
+Saying "Hey Jarvis" plays a short chime and brings the window forward, so you know it heard you before you start talking. `Ctrl+Alt+Space` summons it and starts listening from anywhere. Words appear under the orb as you speak them, using a fast draft model, with a more accurate pass at the end.
+
 Interrupting always works: press **STOP**, hit **Escape**, start typing, or press **MIC**. Interrupting by voice while it speaks is available under Settings but off by default — without echo cancellation the microphone hears the speakers, so it only works on headphones.
+
+## Reminders and music
+
+`Remind me in ten minutes to call mum`, `set a timer for 5 minutes`, or `remind me at 4 pm`. Reminders are stored, so they survive a restart, and they are spoken as well as shown. `What reminders do I have` lists them.
+
+With `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env`, `play bohemian rhapsody`, `pause`, `skip`, and `what is playing` control Spotify directly. Without them, playback commands fall back to the media keys and opening Spotify.
+
+## Swahili
+
+Speak Swahili and J.A.R.V.I.S answers in Swahili, using a Tanzanian voice. `fungua Notepad`, `saa ngapi sasa`, `hali ya hewa leo ikoje`, and `nikumbushe baada ya dakika kumi` all work, because Swahili commands are translated into the same routing English uses rather than duplicated.
+
+The limit worth knowing: the small local model reasons noticeably worse in Swahili than in English. Commands are unaffected, but open conversation will be weaker until a larger model is used. Turn it off with `bilingual_enabled`.
+
+## When something goes wrong
+
+Failures are written to `data/logs/jarvis.log`. Ask `what went wrong` to hear the recent problems without opening the file.
 
 ## Conversation
 

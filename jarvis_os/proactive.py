@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 
+from .diagnostics_log import failure
 from .storage import Database, SettingsRepository
 
 
@@ -19,11 +20,12 @@ class WindowsNotifier:
 
 
 class ProactiveScheduler:
-    def __init__(self, database: Database, settings: SettingsRepository, workflows, notifier=None, interval: int = 60):
+    def __init__(self, database: Database, settings: SettingsRepository, workflows, notifier=None, interval: int = 60, reminders=None):
         self.database = database
         self.settings = settings
         self.workflows = workflows
         self.notifier = notifier or WindowsNotifier()
+        self.reminders = reminders
         self.interval = interval
         self.stop_event = threading.Event()
         self.thread = None
@@ -42,14 +44,18 @@ class ProactiveScheduler:
         while not self.stop_event.is_set():
             try:
                 self.tick()
-            except Exception:
-                pass
+            except Exception as error:
+                failure("proactive", error)
             self.stop_event.wait(self.interval)
 
     def tick(self, now: datetime | None = None) -> None:
+        now = now or datetime.now().astimezone()
+        # Reminders were asked for explicitly, so they fire even when the
+        # proactive alerts a user never asked for are switched off.
+        if self.reminders is not None:
+            self.reminders.deliver_due()
         if not self.settings.get("proactive_enabled", True):
             return
-        now = now or datetime.now().astimezone()
         self._run_daily_workflows(now)
         self._system_health(now)
 

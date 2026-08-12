@@ -20,7 +20,7 @@ ACTIONS = (
     "media", "set_volume", "copy_clipboard", "focus_window", "window_state",
     "screenshot", "analyze_screen", "read_clipboard", "notification", "work_mode", "type_text",
     "close_app", "delete_path", "index_documents", "semantic_search",
-    "install_package", "upgrade_package",
+    "install_package", "upgrade_package", "undo_delete", "show_problems",
 )
 
 
@@ -62,6 +62,7 @@ class SettingsWindow(tk.Toplevel):
         self.auto_web = tk.BooleanVar(value=values.get("auto_web_answers", True))
         self.mic_extended = tk.BooleanVar(value=values.get("mic_extended_listening", True))
         self.barge_in = tk.BooleanVar(value=values.get("voice_barge_in", False))
+        self.earcons = tk.BooleanVar(value=values.get("earcons_enabled", True))
         for text, variable in (
             ("Speak responses", self.speak), ("Minimize to system tray", self.tray),
             ("Start at Windows sign-in", self.startup), ("Store conversation memory", self.memory),
@@ -72,6 +73,7 @@ class SettingsWindow(tk.Toplevel):
             ("Hands-free conversation (continuously listen when not speaking)", self.hands_free),
             ("Check the web automatically for time-sensitive questions", self.auto_web),
             ("Interrupt by voice while speaking (use headphones, or it hears itself)", self.barge_in),
+            ("Play a chime when the wake word is heard", self.earcons),
         ):
             ttk.Checkbutton(frame, text=text, variable=variable).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Ollama model").pack(anchor="w", pady=(16, 2))
@@ -243,6 +245,7 @@ class SettingsWindow(tk.Toplevel):
             "hands_free_enabled": self.hands_free.get(),
             "auto_web_answers": self.auto_web.get(),
             "voice_barge_in": self.barge_in.get(),
+            "earcons_enabled": self.earcons.get(),
             "tts_voice": self.tts_voice.get().strip() or "david",
             "tts_rate": int(self.tts_rate.get()),
             "tts_engine": self.tts_engine.get().strip() or "edge",

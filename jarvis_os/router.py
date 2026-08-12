@@ -79,6 +79,18 @@ class CommandRouter:
         if not normalized:
             return Command("noop", raw_text=raw)
 
+        if re.search(r"\b(?:what went wrong|show (?:me )?(?:the )?log|any (?:errors|problems)|diagnostics)\b", normalized):
+            return Command("show_problems", raw_text=raw)
+
+        if re.search(r"^(?:what|which|list|show|any)\b.*\breminders?\b|^my reminders$", normalized):
+            return Command("list_reminders", raw_text=raw)
+
+        if re.match(r"(?:remind me|set (?:a )?(?:reminder|timer)|wake me)\b", normalized):
+            return Command("add_reminder", {"text": raw}, raw_text=raw)
+
+        if re.fullmatch(r"(?:cancel|clear) (?:all )?(?:my )?reminders", normalized):
+            return Command("clear_reminders", raw_text=raw)
+
         if re.fullmatch(r"(?:undo(?: that| it)?|put (?:that|it) back|restore (?:that|it))", normalized):
             return Command("undo_delete", raw_text=raw)
 
@@ -220,6 +232,9 @@ class CommandRouter:
         match = re.match(r"(?:play|listen to)\s+(.+?)(?:\s+on spotify)?$", normalized)
         if match and match.group(1) not in {"music", "spotify"}:
             return Command("spotify_play", {"query": match.group(1)}, raw_text=raw)
+
+        if re.search(r"what(?:'s| is) (?:playing|this song)|what song is (?:this|playing)|name of (?:this|the) song", normalized):
+            return Command("now_playing", raw_text=raw)
 
         media = {
             "pause": "pause", "pause music": "pause", "resume": "play",
