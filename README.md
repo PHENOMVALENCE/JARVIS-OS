@@ -1,257 +1,161 @@
-# J.A.R.V.I.S Mark 7
+# J.A.R.V.I.S
 
-Mark 7 extends the Windows assistant into a permission-managed automation and local-knowledge platform. It includes a settings center, manifest-based plugins, multi-step workflows, structured Windows UI Automation, privacy-aware screen analysis, semantic document search, productivity integrations, proactive notifications, Windows Credential Manager support, optional Windows Hello approval, an emergency stop, diagnostics, recovery tools, and a Windows release pipeline.
+[![tests](https://github.com/PHENOMVALENCE/JARVIS-OS/actions/workflows/tests.yml/badge.svg)](https://github.com/PHENOMVALENCE/JARVIS-OS/actions/workflows/tests.yml)
+[![release](https://github.com/PHENOMVALENCE/JARVIS-OS/actions/workflows/release.yml/badge.svg)](https://github.com/PHENOMVALENCE/JARVIS-OS/actions/workflows/release.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3119/)
+[![platform: Windows 11](https://img.shields.io/badge/platform-Windows%2011-0078d4.svg)](#requirements)
+[![local-first](https://img.shields.io/badge/local--first-no%20API%20key%20required-4c1.svg)](#what-runs-where)
 
-## Documentation
+**A voice-first operating layer for Windows that runs on your own machine.**
 
-The complete Mark 7 handbook starts at [`docs/README.md`](docs/README.md). It includes installation, user operation, configuration, workflows, integrations, plugin development, architecture, security, backup/release operations, troubleshooting, and testing. The concise command catalog remains in [`COMMANDS.md`](COMMANDS.md).
+Say *"Hey Jarvis, what's the weather today"* and it answers out loud in about
+four seconds. Say *"Jarvis, open Notepad"* and it opens, with a chime instead of
+a sentence. It reads your screen, finds your files, controls your windows, sets
+reminders, and answers questions from live sources — with the language model,
+the speech recognition, and the voice all running locally.
 
-New Mark 7 capabilities:
+It works in English and Kiswahili.
 
-- Use the full command-center interface with an animated voice core, live status telemetry, quick actions, and a responsive three-panel layout.
-- Hold a hands-free conversation: J.A.R.V.I.S continuously listens when enabled, pauses during its own speech, and replies in a natural neural voice.
-- Address it by name the way you would a person. `Jarvis, open Notepad`, `Hey Jarvis, take a screenshot`, and `Jarvis, please close Spotify` all work; the wake name, greetings, and politeness are stripped before routing.
-- Ask `Research <topic>`, `Look up <topic>`, or `Search online for <topic>` for a source-grounded spoken answer. `Search the internet for <topic>` and `Show me the results for <topic>` open browser results instead.
-- Time-sensitive questions reach for live sources automatically. `What is the weather today` or `Who won the match last night` is answered from the web with citations rather than from the local model's frozen training data, while timeless questions stay conversational. Turn this off with **Check the web automatically for time-sensitive questions** in SETTINGS.
-- Configure behavior and per-action permissions from **SETTINGS**.
-- Build voice, manual, or daily routines from **WORKFLOWS**.
-- Press `Ctrl+Alt+J` at any time to cancel pending automation and lock sensitive actions.
-- Say `Remember buy milk`, `Daily brief`, `Read the Notepad window`, or `Search my documents for the launch budget`.
-- Store integration secrets with `python Manage-Credentials.py`; secrets never enter settings exports or SQLite.
-- Run `python Diagnose-Jarvis.py` to verify the installation.
-- Build a standalone executable with `.\Build-Release.ps1`.
+---
 
-## First run
+## What runs where
 
-`.\Setup-Jarvis.ps1` installs dependencies and downloads the language, embedding, wake-word, and voice models. The first launch then walks through the choices that need a person:
+The assistant is usable with no accounts, no API keys, and no internet
+connection beyond what individual answers need.
 
-1. **Microphone** — a live meter shows it is being heard, and one button measures room tone and sets the level at which J.A.R.V.I.S decides you are speaking, instead of shipping one threshold for every room.
-2. **Voice** — offline neural (faster, works with no connection) or the Edge voice, with a button to hear it.
-3. **"Hey Jarvis"** — the local wake word, no account required.
-4. **Startup** — the wake word only works while J.A.R.V.I.S is running, so this starts it at sign-in.
-5. **Privacy** — memory, proactive alerts, and privacy mode.
-
-Local semantic search uses the `nomic-embed-text` Ollama model; install it with `ollama pull nomic-embed-text` if setup has not already done so.
-
-## Voice output
-
-Three engines, chosen under **SETTINGS → General**. Each falls back to the next if it cannot run, so J.A.R.V.I.S never goes silent.
-
-| Engine | Sounds like | Needs internet | Speed |
+| | Runs locally | Needs the network | Needs a paid key |
 |---|---|---|---|
-| `piper` | Offline neural, British male | No | Fastest — 0.25s for ~4s of speech once warm |
-| `edge` | Microsoft neural, British male (default) | Yes | ~2s per reply |
-| `windows` | SAPI, robotic | No | Instant but clearly synthetic |
+| Wake word, speech recognition, offline voice | ✅ | | |
+| Language model (Ollama) | ✅ | | |
+| Screen reading (Windows OCR) | ✅ | | |
+| File search, window control, reminders | ✅ | | |
+| Weather, encyclopedic answers | | ✅ free | |
+| Online neural voice | | ✅ free | |
+| Current-events search | | | optional |
+| Cloud vision, cloud reasoning | | | optional |
 
-`piper` downloads a 63 MB voice on first use and is warmed during startup, so the first reply is not the slow one. It is both the fastest option and the only one that works with no connection at all.
+Privacy mode blocks screen capture and every cloud path, and is authoritative
+over anything that would leave the machine.
 
-## Speed
+## Installing
 
-Replies stream: tokens are collected into sentences and spoken as they complete, rather than after the whole answer is written. The local model is loaded at startup and kept resident, because loading it costs far more than generating an answer — cold, the first token took 15.4s; warm, 0.9s. Together the first spoken sentence arrives about 4s after asking.
+**For users** — download the installer from
+[Releases](https://github.com/PHENOMVALENCE/JARVIS-OS/releases), run it, and the
+first launch walks through microphone, voice, wake word, and startup. See
+[Getting started](docs/GETTING_STARTED.md).
 
-Questions the computer can answer exactly never reach the model at all. Time, date, arithmetic, percentages, unit and temperature conversion, battery, and disk space all return in under a millisecond.
+> The installer is not yet code-signed, so Windows SmartScreen will warn on
+> first run. See [Signing](docs/SIGNING.md) for why, and for how to verify a
+> download against its published SHA-256 checksum in the meantime.
 
-## Listening
-
-Natural speech contains pauses, and a microphone that stops at the first one truncates the request. **Extended listening** keeps capturing for a short window after you pause and joins the pieces, so "open the... budget spreadsheet" arrives as one command. Tune microphone sensitivity, pause length, listen timeout, wake-word sensitivity, and the conversation memory window under **SETTINGS → General**.
-
-The **"Hey Jarvis"** wake word runs locally through openWakeWord and needs no account or key. Porcupine remains selectable if you already have a `PORCUPINE_API_KEY`.
-
-Saying "Hey Jarvis" plays a short chime and brings the window forward, so you know it heard you before you start talking. `Ctrl+Alt+Space` summons it and starts listening from anywhere. Words appear under the orb as you speak them, using a fast draft model, with a more accurate pass at the end.
-
-Interrupting always works: press **STOP**, hit **Escape**, start typing, or press **MIC**. Interrupting by voice while it speaks is available under Settings but off by default — without echo cancellation the microphone hears the speakers, so it only works on headphones.
-
-## Reminders and music
-
-`Remind me in ten minutes to call mum`, `set a timer for 5 minutes`, or `remind me at 4 pm`. Reminders are stored, so they survive a restart, and they are spoken as well as shown. `What reminders do I have` lists them.
-
-With `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in `.env`, `play bohemian rhapsody`, `pause`, `skip`, and `what is playing` control Spotify directly. Without them, playback commands fall back to the media keys and opening Spotify.
-
-## Swahili
-
-Speak Swahili and J.A.R.V.I.S answers in Swahili, using a Tanzanian voice. `fungua Notepad`, `saa ngapi sasa`, `hali ya hewa leo ikoje`, and `nikumbushe baada ya dakika kumi` all work, because Swahili commands are translated into the same routing English uses rather than duplicated.
-
-The limit worth knowing: the small local model reasons noticeably worse in Swahili than in English. Commands are unaffected, but open conversation will be weaker until a larger model is used. Turn it off with `bilingual_enabled`.
-
-## When something goes wrong
-
-Failures are written to `data/logs/jarvis.log`. Ask `what went wrong` to hear the recent problems without opening the file.
-
-## Conversation
-
-Follow-ups resolve against the last command, so `What's the weather in London` followed by `what about Berlin` asks about Berlin, and `do that again` repeats. `Undo that` restores the last file sent to the Recycle Bin. Requests can be chained: `open Notepad and then take a screenshot` runs both in order.
-
-## Web sources
-
-Live answers come from documented public APIs, never from scraping. With no key configured J.A.R.V.I.S uses the DuckDuckGo Instant Answer API and the Wikipedia REST API, which answer definitional and encyclopedic questions well but cover breaking news poorly. Set `SERPAPI_API_KEY` in `.env` for full current-events coverage.
-
-J.A.R.V.I.S is a Windows 11 desktop assistant with simultaneous keyboard and push-to-talk voice input, local or cloud conversation, permission-controlled PC actions, persistent memory, an audit trail, system-tray operation, and automatic startup at sign-in.
-
-## Quick start
+**For developers** — from a clone:
 
 ```powershell
-Set-Location "C:\path\to\J.A.R.V.I.S"
 .\Setup-Jarvis.ps1
 .\Start-Jarvis.ps1
 ```
 
-The default configuration uses the local `gemma2:2b` Ollama model. Type into the input box and press Enter, or press **MIC** and speak. See [COMMANDS.md](COMMANDS.md) for supported PC commands.
+Setup installs dependencies and fetches the language, embedding, wake-word, and
+voice models. It needs Python 3.11 and, for the language model,
+[Ollama](https://ollama.com).
 
-To start J.A.R.V.I.S automatically after Windows login:
+## Talking to it
 
-```powershell
-.\Install-Startup.ps1
+```text
+Hey Jarvis, what's the weather today
+Jarvis, open Notepad and then take a screenshot
+close this
+what about Berlin
+remind me in ten minutes to call mum
+read the screen
+undo that
+run diagnostics
+fungua Notepad          (Swahili: open Notepad)
+nikumbushe baada ya dakika kumi     (remind me in ten minutes)
 ```
 
-Disable automatic startup with `.\Remove-Startup.ps1`. The scheduled task runs only in the signed-in user's interactive session, uses limited privileges, prevents duplicate app instances, and retries after a crash.
+The full catalogue is in [COMMANDS.md](COMMANDS.md) and the
+[User guide](docs/USER_GUIDE.md).
 
-## Safety model
+## How it behaves
 
-Commands are converted into typed local actions. The language model is not given arbitrary PowerShell or command-prompt execution. Opening apps, folders, searches, and normal media actions run immediately. Typing into another application, closing apps, and moving files to the Recycle Bin require visible confirmation. Deletion is recoverable and restricted to the current user's home directory. Attempts and results are recorded locally in `data\jarvis.db`.
+**It does not narrate what you can see.** Opening an application gets a chime,
+not a sentence. Answers, which only exist in what is said, are spoken in full.
+Failures are always surfaced, with the reason and the next step.
 
-Private credentials belong in `.env`, which is ignored by Git. Copy `.env.example` and configure only the integrations you intend to use.
+**It asks before it acts.** Typing into another application, closing one, or
+deleting a file all confirm first. Deletion is limited to your own folder, goes
+to the Recycle Bin, and `undo that` puts it back. Every action is recorded in a
+hash-chained local log.
 
-## Legacy Mark 5 documentation
+**It never gets a shell.** The language model cannot run commands. Every
+capability is an explicit typed action with declared permissions and a risk
+level, and deterministic requests never reach the model at all — the time,
+arithmetic, and unit conversions answer in under a millisecond.
 
-The original Mark 5 runtime remains in the repository for reference. `Start-Jarvis.ps1` launches `Mark_7.py`; `Mark_6.py` remains available as a compatibility entry point.
+**It verifies rather than assumes.** Closing a window sends a close request so
+the application can prompt about unsaved work, then confirms the window
+actually went. A claim that did not take effect is reported as a failure.
 
-# Original system overview
+## Speed
 
-JARVIS is one of the first fully integrated systems that can be spoken to and run locally or through an API, right before speaking it's response back to you and running the command given to it. Using OpenAI's Whisper model for the speech-to-text, either OpenAI's ChatGPT API or Ollama's Gemma2 model for local running, and either OpenAI's, elevenlabs, or microsoft's text-to-speech, there are many different ways to customize your experience. This os is designed to be fully run on any computer system, regardless of processing power(However more processing power always helps). 
+Measured on the development machine: Windows 11, CPU only, no GPU.
 
-FOLLOW THIS GUIDE CLOSELY. It will be a full walkthrough on exactly how the program is to be used.
+| | |
+|---|---|
+| First spoken word of a reply | ~4.4 s |
+| First token from a warm model | ~0.9 s |
+| Time, maths, conversions, battery | under 1 ms |
+| Indexed file search | ~0.27 s |
+| Screen OCR | ~0.56 s |
+| Spoken weather answer | ~1.6 s |
+| Offline speech synthesis (~4 s of audio) | ~0.25 s |
 
-## Features
+Replies stream, so speech starts while the model is still writing, and the
+model is kept resident because loading it costs more than running it.
 
-There are many features of JARVIS installed, and if running locally, these features are sent to the model via the 
-\caches and calls\System_call.txt 
-text file. To learn in detail how each function works, reveiw that text file. 
+## Requirements
 
-[CLICK HERE](https://patreon.com/Hacker_Industries?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) to watch a demonstration regarding every feature's abilities and how to use them effectively in my patreon.
+- Windows 11 (Windows 10 works; the OCR and notification paths are less tested)
+- Python 3.11 for a source install
+- 8 GB RAM minimum, 16 GB comfortable — setup recommends a model to match
+- [Ollama](https://ollama.com) for the language model
+- A microphone
 
-A basic overveiw is also included below:
+## Documentation
 
-- Control Volume with hand gestures - Use OpenCV and media pipe technology to control the volume on a WINDOWS operating system, must have a webcam included for opencv to find. JARVIS function will still work if no camera is to be found. Also has full volume control through voice commands "volume up, down, level 50, etc."
+| | |
+|---|---|
+| [Getting started](docs/GETTING_STARTED.md) | Install and first run |
+| [User guide](docs/USER_GUIDE.md) | Everything it can do |
+| [Commands](COMMANDS.md) | The command catalogue |
+| [Configuration](docs/CONFIGURATION.md) | Settings and `.env` |
+| [Architecture](docs/ARCHITECTURE.md) | How it is built |
+| [Contributing](CONTRIBUTING.md) | Setting up to develop |
+| [Plugins](docs/PLUGINS.md) | Extending it |
+| [Workflows](docs/WORKFLOWS.md) | Routines and automation |
+| [Security model](docs/SECURITY.md) | Permissions, audit, trust boundaries |
+| [Packaging](docs/PACKAGING.md) | Building the installer |
+| [Signing](docs/SIGNING.md) | Code signing and SmartScreen |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | When something is wrong |
+| [Audit](docs/AUDIT.md) | Architecture review and measurements |
+| [Changelog](CHANGELOG.md) | What changed |
 
-- full intent recognition - JARVIS can offer ideas and then follow up with commands based on what he believes to be the user's intentions
+## Contributing
 
-- GUI - A full graphical user interface to be able to interact JARVIS in a clean enviornment(terminals will run in the background as well for those who are interested)
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
+development setup, how to run the tests, and the conventions the codebase
+follows — the important ones being that machine-affecting capabilities stay
+typed and permission-gated, and that nothing fails silently.
 
-- Muting - In order to make it so JARVIS is not always listening and responding, tell him to mute! If spotify is playing in the background, JARVIS has the capabilities to stop the playback while he is speaking. Once he mutes, the playback will continue as normal.
+## Licence and credits
 
-- Vision - JARVIS can use this function to see through the camera and answer any questions regarding what he sees
+MIT. See [LICENSE](LICENSE).
 
-- Spotify - Has full spotify control, can play, pause, skip, previous, and tell you what song is playing. Also allows for playing specific songs, adding songs to the queue, and 
+J.A.R.V.I.S began as a fork of
+[ColeHacker381/J.A.R.V.I.S](https://github.com/ColeHacker381/J.A.R.V.I.S). The
+Mark 5 runtime it came from is still in the repository, and its original
+documentation is preserved in [docs/LEGACY.md](docs/LEGACY.md).
 
-- save text - can save text files in the "J.A.R.V.I.S log files" folder based on what you ask him to save
-
-- google image search and text search - JARVIS can search google for specific images and can parse through websites to find specific data. This is a very effective function for research, as it allows you to parse through many websites in a very short time.
-
-- DALLE3 generated images - JARVIS can also generate images through OpenAI's DALLE3. Be warned that DALLE3 is not good at text generation.
-
-- analyze image files - JARVIS can take input image files (.png, .jpg tested and supported) and analyze them based on what the user is looking to analyze. PDF analyzation coming in future installments.
-
-- IOS mode - Currently in the beta testing stages, JARVIS can use your phone provider and send free SMS messages through gmail. Any text sent back through IOS is sent to the gmail inbox, which is monitored by JARVIS. Any input from the IOS message will send it through gmail to JARVIS, where he can then parse the text and send it back to the user. THIS IS CURRENTLY IN BETA TESTING, DO NOT EXPECT PERFECT RESULTS. Regardless of testing, the sending of messages through IOS is perfectly encrypted through gmail, so data leaks are not a problem.
-
-## Cost of Operation
-
-The main purpose of this project was to keep the cost of operation as low as possible. Therefore, lots of different methods and options have been used in place of more expensive ones through my research. A few options that do still have costs are as follows:
-
-- OpenAI chatGPT API - If you decide to use the ChatGPT API as your LLM model, Based on which API model you use, expenses can vary. The GPT-3.5 model, however, is incredibly inexpensive, and you can go through an entire conversation with JARVIS(around 500 words generated by the LLM) and only spend around 1 CENT.
-
-- Local LLM through Ollama - This model is completely FREE to use, but does require a significant amount of processing power to run. In terms of processing power, the standard gemma2 model is best fit with a GPU of RTX 4060 to run effectively, but different models have different requirements. I have found through testing that the gemma2 standard model is the best overall, and will be the default for this project. But play around with different models on the ollama website, and see which one is best for you.
-
-- text-to-speech options - There are 3 main ways to use the text-to-speech options. The first being the completely FREE option of microsoft's pyttsx3, which has two options, boy and girl, and are quite robotic. They are the default for this project, but support for elevenlabs and OpenAI's tts are available as well. Pricing varies based on useage, visit the websites for more info on pricing, linked here:
-
-elevenlabs link
-OpenAI tts link
-
-- Vision, Analyze, Image generation - These functions are all ran through the OpenAI API, and have varying costs for the Vision and Analyze functions. For these the project uses GPT-4o, which upon using either function has an API cost of about 1 CENT per function call. The DALLE3 image generator has an API cost of about 4 CENTS per call. 
-
-# Imports and Installs
-There are many, many, many things to install, so let's get started. This setup process is only required once.
-
-I have included a basic tutorial below, but for the full in-depth look on how to install all of these dependencies the correct way, while also getting a look on how to create the API keys and set up google cloud in order to effectively use all of the functions, head to my patreon here: [CLICK HERE](https://patreon.com/Hacker_Industries?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink)
-
-1. Firstly, download all of the files into the directory you wish to use JARVIS in. Then open a terminal and run the following commands one by one:
-```
-pip install whisper_mic
-```
-```
-pip install -r requirements.txt
-```
-
-This will install all of the imports needed to run JARVIS
-
-2. Next, we need to input all of the API keys that will be used for the different functions. The API keys that are needed are as follows:
-
-- OpenAI API key
-- OpenAI assistants ID
-- OpenAI thread ID
-- Pvporcupine API key
-- Serpapi google search API key
-- Elevenlabs API(optional but for speech to text)
-
-Take these API keys and place them in their respective variables in \Utilities\constants.py
-
-3. Next, we need to input all of the credentials needed for the Spotify and IOS functions to work. All the spots to put the credentials are in "\Utilities\constants.py". For IOS authentication, you will need to input the following in their respective variables:
-
-- phone number
-- phone provider
-- gmail you wish to send messages from and recieve to
-- the password given to you by the sms messaging system to authenticate
-
-For spotify autentication, you will need to input these credentials in their respective variables:
-
-- username(not actual username, but the spotify given one)
-- client Id
-- client secret
-- redirect_uri
-
-4. After all this setup, we should be ready to run JARVIS! The last thing we need to do is make it so that JARVIS can run on startup of our computer.
-
-- Head to task scheduler on the start menu of your windows machine.
-- Create a new task.
-- In the "Triggers" section, Allow the task to run on the "at startup", "on workstation unlock", "At log on", "on connection to user session". These can be changed based on your preferences
-- In the "Actions" section, add a new action, that will "start a program"
-- Find the path to your python executable file, and in this new action, paste the path into the "program/script".
-- In the "Add arguments" section, put the executable file we want to run, in this case would be "Mark_5.py"
-- In the "Start in" section, put the path to the directory that the executable file (i.e. Mark_5.py) is run in.
-- Change any other settings based on your preferences, and save the new action.
-- Repeat this process for the exectuable file "GUI.py"
-
-5. Enjoy!! If there are any bugs or software issues, please leave a comment on the github or head to my patreon to get access to the tutorial videos on how to set up this program, as well as access to a discord community chat room: [CLICK HERE](https://patreon.com/Hacker_Industries?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink)
-
-# User Customization
-Thare are lots of different ways to customize your JARVIS bot, here are a few starters:
-
-- Speech-to-text - have full control over what voice to give your JARVIS bot, weather it is OpenAI, elevenlabs, or microsoft.
-
-- LLM model type - The user has access to the OpenAI API for talking through a wifi connection, or through an ollama model if you want to go offline
-
-- Adding new functions - take the reigns and add your own functions to the bot. To add new functions, its as simple as adding a definition in the main executable that does the action, hook it up in the executable_functions definiton, and add a description in the \caches and calls\System_call.txt file!
-
-# Drawbacks and Limitations(for now)
-- Upon first startup the model has a slower response time -
-- Whisper hallucenations -
-- Beta testing of the IOS mode - 
-- Memory does not pass through instances -
-- analyze function can only accept (.png and .jpg) image files- 
-
-# Future installments
-- Analyze function accepts pdf format and .heic files
-- MAC OS accessability
-- IOS mode stability
-- Much more!
-
-# License
-Etext functionalities provided by AlfredoSequeida (c) 2021
-
-Distributed under the MIT license, see LICENSE for more information
-
-# Contact
-I am going to try my absolute very best to provide as much help to people as possible, but please understand that I am not always available to do so. There are many different ways to contact me:
-
-- Instagram @ hacker.industries
-- Github comments
-- Discord community chat - available through patreon [HERE](https://patreon.com/Hacker_Industries?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink).
+Email SMS functionality is provided by AlfredoSequeida's `etext` (c) 2021.
