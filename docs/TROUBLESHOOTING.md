@@ -141,8 +141,8 @@ The current plugin uses GitHub CLI authentication, not the stored `github_token`
 Inspect:
 
 ```powershell
-Get-ScheduledTask -TaskName "J.A.R.V.I.S Mark 6"
-Get-ScheduledTaskInfo -TaskName "J.A.R.V.I.S Mark 6"
+Get-ScheduledTask -TaskName "J.A.R.V.I.S"
+Get-ScheduledTaskInfo -TaskName "J.A.R.V.I.S"
 ```
 
 Recreate it:

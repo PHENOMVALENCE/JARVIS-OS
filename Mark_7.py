@@ -32,7 +32,10 @@ def _raise_existing_window() -> None:
 
     def visit(handle, _extra):
         length = user32.GetWindowTextLengthW(handle)
-        if length and user32.IsWindowVisible(handle):
+        # A normal close minimizes J.A.R.V.I.S to the tray with withdraw(),
+        # which makes its Tk window invisible.  We still need to find that
+        # hidden window so a second launch can restore it.
+        if length:
             buffer = ctypes.create_unicode_buffer(length + 1)
             user32.GetWindowTextW(handle, buffer, length + 1)
             if "J.A.R.V.I.S" in buffer.value:

@@ -73,7 +73,7 @@ Enable startup for the current Windows account:
 .\Install-Startup.ps1
 ```
 
-This creates the scheduled task `J.A.R.V.I.S Mark 6` for historical compatibility. The task launches the current `Start-Jarvis.ps1`, which starts Mark 7. It uses:
+This creates the scheduled task `J.A.R.V.I.S` for historical compatibility. The task launches the current `Start-Jarvis.ps1`, which starts Mark 7. It uses:
 
 - an at-logon trigger for the current user;
 - an interactive, limited-privilege principal;
@@ -117,10 +117,10 @@ Build the folder-based release:
 The executable is written to:
 
 ```text
-dist\JARVIS-Mark-7\JARVIS-Mark-7.exe
+dist\JARVIS\JARVIS.exe
 ```
 
-The entire `dist\JARVIS-Mark-7` directory is required. Do not copy only the executable.
+The entire `dist\JARVIS` directory is required. Do not copy only the executable.
 
 ## What works without cloud credentials
 
